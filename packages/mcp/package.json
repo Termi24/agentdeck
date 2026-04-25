@@ -1,0 +1,26 @@
+{
+  "name": "@agentdeck/mcp",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "agentdeck-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist .turbo"
+  },
+  "dependencies": {
+    "@agentdeck/shared": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "undici": "^6.21.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2"
+  }
+}

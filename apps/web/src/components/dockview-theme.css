@@ -1,0 +1,27 @@
+.dockview-theme-agentdeck {
+  --dv-tabs-and-actions-container-background-color: hsl(var(--card));
+  --dv-tab-active-background-color: hsl(var(--background));
+  --dv-tab-inactive-background-color: hsl(var(--card));
+  --dv-activegroup-visiblepanel-tab-background-color: hsl(var(--background));
+  --dv-activegroup-hiddenpanel-tab-background-color: hsl(var(--card));
+  --dv-inactivegroup-visiblepanel-tab-background-color: hsl(var(--card));
+  --dv-inactivegroup-hiddenpanel-tab-background-color: hsl(var(--card));
+
+  --dv-activegroup-visiblepanel-tab-color: hsl(var(--foreground));
+  --dv-activegroup-hiddenpanel-tab-color: hsl(var(--muted-foreground));
+  --dv-inactivegroup-visiblepanel-tab-color: hsl(var(--muted-foreground));
+  --dv-inactivegroup-hiddenpanel-tab-color: hsl(var(--muted-foreground));
+  --dv-tab-divider-color: hsl(var(--border));
+
+  --dv-paneview-active-outline-color: hsl(var(--ring));
+  --dv-drag-over-background-color: hsl(var(--accent) / 0.3);
+  --dv-drag-over-border-color: hsl(var(--ring));
+
+  --dv-separator-border: hsl(var(--border));
+  --dv-group-view-background-color: hsl(var(--background));
+  --dv-tab-divider-color: hsl(var(--border));
+  --dv-icon-hover-background-color: hsl(var(--accent));
+  --dv-floating-box-shadow: 0 8px 24px rgb(0 0 0 / 0.3);
+
+  --dv-background-color: hsl(var(--background));
+}
