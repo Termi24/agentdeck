@@ -14,7 +14,7 @@
 
 0. [Lecture en 2 minutes](#0-lecture-en-2-minutes)
 1. [Pré-requis projet](#1-pré-requis-projet)
-2. [Les 8 principes directeurs (non-négociables)](#2-les-8-principes-directeurs)
+2. [Les 9 principes directeurs (non-négociables)](#2-les-9-principes-directeurs)
 3. [Outillage : agentdeck idéal vs mode dégradé](#3-outillage)
 3bis. [Communication inter-agents : chat d'équipe + DM](#3bis-communication-inter-agents)
 3ter. [Pré-démarrage : vérification agentdeck par Claude](#3ter-pré-démarrage)
@@ -89,7 +89,7 @@ Avant d'appliquer cette méthodologie, vérifier que le projet cible a :
 
 ---
 
-## 2. Les 8 principes directeurs
+## 2. Les 9 principes directeurs
 
 Ces règles sont **non-négociables**. Violer une règle = réintroduire une classe de bug connue et ajouter des faux positifs. Si une règle ne peut pas être appliquée sur un projet, **documenter explicitement** pourquoi et l'impact avant de démarrer.
 
@@ -234,6 +234,33 @@ Si la vérif échoue → stop, investiguer avant de paralléliser.
 
 **Violation typique.** Lancer 6 personas en parallèle d'entrée de jeu parce que "c'est plus rapide". Découvrir le bug d'isolation après 3 heures d'exécution polluée.
 
+### Principe 9 — Planning d'équipe ≥ 1 semaine
+
+**Règle.** L'**équipe de personas** (l'ensemble des rôles fictifs qui forment l'entreprise simulée et qui vont collaborer pendant le test) doit avoir un **planning calendaire d'au moins 1 semaine ouvrée**, étendu à 2 ou 3 semaines si la complexité du domaine ou le nombre de handoffs cross-module l'exige. Une "journée type" isolée par persona ne suffit pas — c'est le planning **collectif sur la semaine** qui rend la collaboration testable.
+
+**Pourquoi.** Trois raisons, observées sur la campagne IndusForge (8 personas, ERP eyeot) :
+1. **Les bugs de handoff n'apparaissent qu'au J+2 / J+3.** Un ticket créé par Damien lundi matin doit attendre le triage IT de l'après-midi, l'escalade vers Amandine mardi, puis le retour au demandeur jeudi. Un planning d'1 jour aplatit tout en simultané et rate ~70 % des frictions de handoff (pas de relance, pas de SLA, pas d'état "en attente de").
+2. **Les personas sans planning crédible deviennent des robots.** Sans rythme hebdomadaire (réunions du lundi, livrables du jeudi, reporting du vendredi), les agents IA dérivent vers du bug-hunting mécanique et ratent les frictions UX (cul-de-sac d'attente, notifications absentes, manque de vue d'équipe).
+3. **L'amortissement de la cartographie n'a de sens qu'à l'échelle semaine.** 1 jour de Phase 0-1 (cartographie + smoke) pour 1 jour de Phase 4 (test) → ratio 1:1, peu rentable. Pour 5 jours de Phase 4 multi-personas → ratio 1:5, c'est là que la méthodologie paie.
+
+**Comment.** Pour chaque campagne, produire un fichier `_qa/<date>/00-planning-équipe.md` qui contient :
+- Une **grille J×N** : 5 colonnes (J1-Lundi à J5-Vendredi, +J6/J7 si extension), N lignes (1 par persona).
+- Pour chaque cellule : 2-4 actions concrètes ancrées dans le métier (ex: "Damien — réception 12 tickets weekend, triage matin, 3 escalades IT").
+- Une colonne dédiée **handoffs cross-personas** : qui passe quoi à qui, et à quel moment de la semaine.
+- Un encart **réunions d'équipe** : standup lundi matin, point milieu jeudi, debrief vendredi (chacun = ≥ 3 messages canal).
+- Un encart **livrables hebdomadaires** : ce que l'entreprise produit en sortie de semaine (rapport mensuel, reporting client, audit interne…).
+
+**Comment (avec agentdeck).** Le planning peut être posté en tête de campagne dans `project_memory_write({key:'campaign-plan'})` puis chaque persona lit `project_memory_read` au démarrage de sa journée. Les handoffs deviennent des `send_direct` ciblés ; les réunions deviennent des séquences `post_to_channel`.
+
+**Comment (sans agentdeck).** Fichier `_team/planning.md` partagé + une convention de pré-fixe `[J1-AM]`, `[J3-PM]` dans les messages markdown pour suivre le déroulé.
+
+**Seuils.**
+- **< 1 semaine planifiée** : campagne refusée — bascule en mode "test agent solo §02" qui ne prétend pas à la couverture multi-personas.
+- **1 semaine** : minimum pour ERP / SaaS B2B / marketplace (≥ 4 personas avec handoffs).
+- **2-3 semaines** : nécessaire pour app multi-département (≥ 8 personas), cycles trimestriels (clôture finance, paie, audit), ou vérification de processus longue durée (onboarding client, recouvrement).
+
+**Violation typique.** Démarrer Phase 4 avec une simple liste de "8 personas et leurs pages" sans calendrier. Résultat : tous les agents tapent en parallèle au J0, créent des objets sans dépendance temporelle, et les bugs de séquencement (un objet créé tôt qui devrait bloquer une action tardive) restent invisibles. C'est exactement le manque qui a fait passer 12 MISS sous le radar lors de la première semaine eyeot.
+
 ---
 
 ## 3. Outillage
@@ -299,7 +326,7 @@ La méthodologie reste **100 % applicable** sans agentdeck. Les 8 principes tien
 
 Si le code source n'est pas accessible (SaaS concurrent, API tierce) :
 - **Skipper Phase 1** (cartographie) ou la remplacer par une **cartographie Playwright** : un agent qui clique partout pendant 30 min et note les endpoints vus dans Network.
-- Garder les 8 principes, mais couverture = ce qui a été découvert (pas "exhaustive", "découverte").
+- Garder les 9 principes, mais couverture = ce qui a été découvert (pas "exhaustive", "découverte").
 - Rapports mentionnent explicitement le mode black-box pour que le lecteur adapte ses attentes.
 
 ---
@@ -624,7 +651,7 @@ Avant de définir les personas, répondre :
 
 ### 4.3 Anatomie d'un persona
 
-Un persona est défini par **6 éléments**. Chacun est obligatoire — si l'un manque, l'agent redevient un robot et rate les frictions UX.
+Un persona est défini par **6 éléments individuels**. Chacun est obligatoire — si l'un manque, l'agent redevient un robot et rate les frictions UX. La "journée type" décrite ici est ensuite **compilée dans le planning d'équipe hebdomadaire** (§4.8) qui matérialise le Principe 9 — sans cette montée d'échelle, les handoffs cross-personas restent invisibles.
 
 ```markdown
 ## Persona : <Prénom> <Nom> — <Rôle>
@@ -728,7 +755,49 @@ Pour chaque projet, écrire un fichier `_qa/<date>/00-personas.md` qui liste :
 - La matrice "persona × module principal × modules secondaires"
 - La matrice des handoffs entre personas
 
-Ce fichier est l'**input structurant** des Phases 3-5.
+Ce fichier est l'**input structurant** des Phases 3-5. Il est **complété** (pas remplacé) par le planning d'équipe `00-planning-équipe.md` décrit ci-dessous.
+
+### 4.8 Planning d'équipe hebdomadaire (matérialisation du Principe 9)
+
+Là où §4.3 décrit la *journée* d'un persona isolé, ce livrable décrit la *semaine* de l'équipe entière. Sans lui, les handoffs cross-personas restent simultanés et invisibles. Format imposé : grille J×N avec une ligne par persona, une colonne par demi-journée ouvrée, et **deux encarts transverses** (réunions, livrables).
+
+Fichier : `_qa/<date>/00-planning-équipe.md`
+
+```markdown
+# Planning d'équipe — semaine du <date_lundi>
+
+## Grille J×N (demi-journées)
+
+|              | Lun AM | Lun PM | Mar AM | Mar PM | Mer AM | Mer PM | Jeu AM | Jeu PM | Ven AM | Ven PM |
+|--------------|--------|--------|--------|--------|--------|--------|--------|--------|--------|--------|
+| Amandine     | …      | …      | …      | …      | …      | …      | …      | …      | …      | …      |
+| Damien       | …      | …      | …      | …      | …      | …      | …      | …      | …      | …      |
+| <persona N>  | …      | …      | …      | …      | …      | …      | …      | …      | …      | …      |
+
+Chaque cellule = 2-4 actions concrètes ancrées dans le métier (pages visitées, items créés / modifiés / consultés).
+
+## Handoffs prévus (qui passe quoi à qui, à quel moment)
+
+| De     | Vers     | Quand     | Contenu                                            |
+|--------|----------|-----------|----------------------------------------------------|
+| Damien | Amandine | Lun PM    | Escalade ticket TK-42 (panne Wifi salle 3)         |
+| …      | …        | …         | …                                                  |
+
+## Réunions d'équipe
+
+- **Lun 09:00 — Standup hebdomadaire** : tour de table 3 phrases (≥ 3 messages canal par persona, format `[STANDUP]`)
+- **Jeu 14:00 — Point milieu** : revue blocages et risques (canal, format `[MILIEU]`)
+- **Ven 16:00 — Debrief + handover weekend** : ce qui est livré, ce qui reste (canal, format `[DEBRIEF]`)
+
+## Livrables hebdomadaires
+
+- <Livrable 1> — owner : <persona>, deadline : <Jour PM>
+- <Livrable 2> — …
+```
+
+**Extension au-delà d'1 semaine** : si la cible a des cycles métier > 5 jours (clôture mensuelle finance, paie, audit trimestriel, onboarding client long), dupliquer la grille sur S+1 et S+2 et marquer explicitement les **transitions inter-semaines** (objets reportés, décisions reprises, KPIs ré-évalués).
+
+**Anti-pattern**. Ne JAMAIS générer un planning qui aplatit toutes les actions au J0 ou qui se contente d'une journée type "moyenne" — c'est exactement la violation Principe 9 que ce livrable existe pour empêcher.
 
 ---
 
@@ -1365,7 +1434,7 @@ Préparer et lancer l'**orchestrator**, qui est le sub-agent chef qui coordonne 
 **Étape 1 — Rédiger le brief commun** (si pas déjà fait Phase 0)
 
 Voir §17.2 pour le template complet. Il doit contenir :
-- Règles §2 (les 8 principes), en texte explicite que l'agent doit obéir
+- Règles §2 (les 9 principes), en texte explicite que l'agent doit obéir
 - CAMPAIGN_ID et préfixe à utiliser
 - Format de rapport attendu
 - Outillage à utiliser (avec ou sans agentdeck)

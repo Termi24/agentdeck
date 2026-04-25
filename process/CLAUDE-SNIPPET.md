@@ -28,7 +28,7 @@ Si jamais elles n'apparaissent pas dans ton contexte :
 3. Suis le pipeline 9 phases en lisant chaque section avant exécution.
 
 Avant `end_campaign` : `submit_campaign_retrospective` obligatoire.
-Tu es libre de définir N personas adaptés au projet, tant que les 8 principes
+Tu es libre de définir N personas adaptés au projet, tant que les 9 principes
 sont respectés (read_methodology section "principles").
 ```
 
@@ -38,7 +38,7 @@ Depuis n'importe quel CLI branché à agentdeck, demande simplement :
 
 > *"Décris-moi ce que fait le MCP agentdeck."*
 
-Si le CLI répond avec le pipeline 9 phases, les 8 principes et les sections
+Si le CLI répond avec le pipeline 9 phases, les 9 principes et les sections
 `read_methodology` → les instructions sont bien injectées, le snippet n'est
 pas nécessaire.
 
