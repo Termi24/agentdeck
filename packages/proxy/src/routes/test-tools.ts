@@ -10,12 +10,17 @@ const ValidateBody = z.object({
   url: z.string().url(),
   headers: z.record(z.string(), z.string()).optional(),
   body: z.unknown().optional(),
-  expectStatus: z.union([z.number().int(), z.enum(['2xx', '3xx', '4xx', '5xx'])]).optional(),
+  // Coerce numeric strings ("200") to int — some MCP clients stringify integers
+  // when bridging through their tool-call shim, and rejecting that form forces
+  // the caller to fight their own runtime.
+  expectStatus: z.union([z.coerce.number().int(), z.enum(['2xx', '3xx', '4xx', '5xx'])]).optional(),
   expectJsonContains: z.record(z.string(), z.unknown()).optional(),
   expectBodyIncludes: z.string().optional(),
   timeoutMs: z.number().int().positive().max(120_000).optional(),
   maxRetries: z.number().int().min(0).max(10).optional(),
   maxBackoffMs: z.number().int().min(0).max(300_000).optional(),
+  followRedirects: z.boolean().optional(),
+  maxRedirects: z.number().int().min(0).max(20).optional(),
 });
 
 const InventoryBody = z.object({
@@ -29,6 +34,24 @@ const InventoryBody = z.object({
       threshold: z.number().min(0).max(1).optional(),
     })
     .optional(),
+  /**
+   * When true, omit the per-route list and return only aggregated counts
+   * (per blueprint × method). Caller can then drill down with `filter`.
+   * Cuts a 760-route inventory from ~70 KB to ~2 KB so MCP callers don't
+   * blow their token budget on the first call.
+   */
+  summary: z.boolean().optional(),
+  /** Restrict the returned `routes[]` to entries matching all given criteria. */
+  filter: z
+    .object({
+      method: z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']).optional(),
+      pathPrefix: z.string().min(1).optional(),
+      blueprint: z.string().min(1).optional(),
+    })
+    .optional(),
+  /** Slice into the (filtered) routes for paging — default no slicing. */
+  limit: z.number().int().positive().max(2000).optional(),
+  offset: z.number().int().min(0).optional(),
 });
 
 export const registerTestToolsRoutes: FastifyPluginAsync = async (app) => {
@@ -62,7 +85,68 @@ export const registerTestToolsRoutes: FastifyPluginAsync = async (app) => {
       if (parsed.data.selfCheck) {
         result.selfCheck = await runInventorySelfCheck(result, parsed.data.selfCheck);
       }
-      return result;
+
+      // Apply filter (method / pathPrefix / blueprint) if provided.
+      const filter = parsed.data.filter;
+      let routes = result.routes;
+      if (filter) {
+        routes = routes.filter((r) => {
+          if (filter.method && r.method !== filter.method) return false;
+          if (filter.pathPrefix && !r.path.startsWith(filter.pathPrefix)) return false;
+          if (filter.blueprint && r.blueprint !== filter.blueprint) return false;
+          return true;
+        });
+      }
+      const totalAfterFilter = routes.length;
+
+      // Apply paging on the filtered set.
+      const offset = parsed.data.offset ?? 0;
+      const limit = parsed.data.limit;
+      const paged = limit !== undefined ? routes.slice(offset, offset + limit) : routes.slice(offset);
+
+      // Build the per-blueprint × method aggregation. Always cheap to
+      // include — gives the caller a one-shot view of where the surface
+      // weight sits, even when they also asked for the full list.
+      const aggBp: Record<string, Record<string, number>> = {};
+      const aggMethod: Record<string, number> = {};
+      for (const r of result.routes) {
+        const bp = r.blueprint ?? '(none)';
+        aggBp[bp] = aggBp[bp] ?? {};
+        aggBp[bp][r.method] = (aggBp[bp][r.method] ?? 0) + 1;
+        aggMethod[r.method] = (aggMethod[r.method] ?? 0) + 1;
+      }
+      const summary = {
+        total: result.routes.length,
+        totalAfterFilter,
+        byMethod: aggMethod,
+        byBlueprint: aggBp,
+      };
+
+      // `summary: true` = drop the heavy `routes[]` payload entirely so
+      // MCP callers don't blow their token budget on the first call.
+      if (parsed.data.summary) {
+        return {
+          framework: result.framework,
+          rootPath: result.rootPath,
+          scannedFiles: result.scannedFiles,
+          summary,
+          blueprintPrefixes: result.blueprintPrefixes,
+          selfCheck: result.selfCheck,
+        };
+      }
+
+      return {
+        framework: result.framework,
+        rootPath: result.rootPath,
+        scannedFiles: result.scannedFiles,
+        routes: paged,
+        summary,
+        blueprintPrefixes: result.blueprintPrefixes,
+        selfCheck: result.selfCheck,
+        ...(limit !== undefined || filter
+          ? { paging: { offset, limit: limit ?? null, returned: paged.length, totalAfterFilter } }
+          : {}),
+      };
     } catch (err) {
       return reply.internalServerError(err instanceof Error ? err.message : String(err));
     }

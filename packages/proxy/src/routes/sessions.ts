@@ -6,6 +6,7 @@ import { agents } from '@agentdeck/shared';
 import type { EventBus } from '../event-bus.js';
 import {
   appendEvent,
+  finalizeAgent,
   getSession,
   insertAgent,
   listSessionAgents,
@@ -144,6 +145,11 @@ export const registerSessionRoutes: FastifyPluginAsync<{ eventBus: EventBus }> =
       .where(and(eq(agents.id, agentId), eq(agents.sessionId, sessionId)))
       .get();
     if (!exists) return reply.notFound(`agent ${agentId} not found in session ${sessionId}`);
+    finalizeAgent(agentId, {
+      status: parsed.data.status,
+      tokensIn: parsed.data.tokensIn,
+      tokensOut: parsed.data.tokensOut,
+    });
     const ev = {
       type: 'agent.stopped' as const,
       sessionId,

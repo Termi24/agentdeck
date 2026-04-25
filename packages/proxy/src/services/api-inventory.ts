@@ -312,6 +312,14 @@ function scanExpressLike(rootPath: string, framework: 'express' | 'fastify'): In
       while ((m = re.exec(line)) !== null) {
         const verb = m[2] ?? '';
         const path = m[3] ?? '';
+        // The regex would otherwise match Headers.get('retry-after'),
+        // util.get('/path') helpers, and similar non-Fastify call sites.
+        // Real HTTP routes always start with '/'; everything else is noise.
+        if (!path.startsWith('/')) continue;
+        // Self-scan sentinels — agentdeck's own services/api-inventory.ts
+        // illustrates the regex with '/path' and '/...' string literals;
+        // those are never real routes so don't surface them.
+        if (path === '/path' || path === '/...') continue;
         routes.push({
           method: verb.toUpperCase(),
           path,

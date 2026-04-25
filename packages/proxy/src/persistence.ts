@@ -10,8 +10,19 @@ import {
   type NewAgent,
   type NewSession,
 } from '@agentdeck/shared';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { getDb } from './db.js';
+
+// SQLite default `current_timestamp` returns "YYYY-MM-DD HH:MM:SS" (no T, no Z).
+// JavaScript `new Date(s)` interprets that as LOCAL time on Chrome — so a
+// timestamp written 5 s ago looks ~2 h in the past for a UTC+2 user. Force
+// every cross-boundary timestamp through this helper so the browser parses
+// them as UTC and `relativeTime()` stays honest.
+function toIso(dt: string | null): string | null {
+  if (!dt) return null;
+  if (dt.includes('T')) return dt;
+  return dt.replace(' ', 'T') + 'Z';
+}
 
 export function insertSession(row: NewSession): void {
   getDb().insert(sessions).values(row).run();
@@ -62,48 +73,54 @@ export function listSessions(limit = 200): SessionListRow[] {
       endedAt: sessions.endedAt,
       totalTokensIn: sessions.totalTokensIn,
       totalTokensOut: sessions.totalTokensOut,
-      rootRole: agents.role,
-      agentCount: sql<number>`(SELECT count(*) FROM ${agents} WHERE ${agents.sessionId} = ${sessions.id})`,
-      runningAgentCount: sql<number>`(SELECT count(*) FROM ${agents} WHERE ${agents.sessionId} = ${sessions.id} AND ${agents.status} IN ('running','pending','waiting_tool'))`,
-      channelMessageCount: sql<number>`(SELECT count(*) FROM ${channelMessages} WHERE ${channelMessages.sessionId} = ${sessions.id})`,
-      docCount: sql<number>`(SELECT count(*) FROM ${docs} WHERE ${docs.sessionId} = ${sessions.id})`,
-      testResultCount: sql<number>`(SELECT count(*) FROM ${testResults} WHERE ${testResults.sessionId} = ${sessions.id})`,
-      toolCallCount: sql<number>`(SELECT count(*) FROM ${toolCalls} WHERE ${toolCalls.sessionId} = ${sessions.id})`,
-      runningToolCallCount: sql<number>`(SELECT count(*) FROM ${toolCalls} WHERE ${toolCalls.sessionId} = ${sessions.id} AND ${toolCalls.status} = 'running')`,
-      lastActivityAt: sql<string | null>`(SELECT max(${events.createdAt}) FROM ${events} WHERE ${events.sessionId} = ${sessions.id})`,
-      lastMessageFromName: sql<string | null>`(SELECT ${channelMessages.fromAgentName} FROM ${channelMessages} WHERE ${channelMessages.sessionId} = ${sessions.id} ORDER BY ${channelMessages.createdAt} DESC LIMIT 1)`,
-      lastMessageContent: sql<string | null>`(SELECT ${channelMessages.content} FROM ${channelMessages} WHERE ${channelMessages.sessionId} = ${sessions.id} ORDER BY ${channelMessages.createdAt} DESC LIMIT 1)`,
-      lastMessageAt: sql<string | null>`(SELECT ${channelMessages.createdAt} FROM ${channelMessages} WHERE ${channelMessages.sessionId} = ${sessions.id} ORDER BY ${channelMessages.createdAt} DESC LIMIT 1)`,
+      isBridge: sessions.isBridge,
+      // Correlated sub-queries must qualify columns by table name so the inner reference
+      // to "session_id" doesn't shadow against the outer "sessions". Drizzle's
+      // ${table.column} interpolation drops the table prefix, which would silently match
+      // the inner agents.session_id against the inner agents.id (always 0). Use raw SQL.
+      agentCount: sql<number>`(SELECT count(*) FROM agents WHERE agents.session_id = sessions.id)`,
+      runningAgentCount: sql<number>`(SELECT count(*) FROM agents WHERE agents.session_id = sessions.id AND agents.status IN ('running','pending','waiting_tool'))`,
+      channelMessageCount: sql<number>`(SELECT count(*) FROM channel_messages WHERE channel_messages.session_id = sessions.id)`,
+      docCount: sql<number>`(SELECT count(*) FROM docs WHERE docs.session_id = sessions.id)`,
+      testResultCount: sql<number>`(SELECT count(*) FROM test_results WHERE test_results.session_id = sessions.id)`,
+      toolCallCount: sql<number>`(SELECT count(*) FROM tool_calls WHERE tool_calls.session_id = sessions.id)`,
+      runningToolCallCount: sql<number>`(SELECT count(*) FROM tool_calls WHERE tool_calls.session_id = sessions.id AND tool_calls.status = 'running')`,
+      lastActivityAt: sql<string | null>`(SELECT max(events.created_at) FROM events WHERE events.session_id = sessions.id)`,
+      lastMessageFromName: sql<string | null>`(SELECT channel_messages.from_agent_name FROM channel_messages WHERE channel_messages.session_id = sessions.id ORDER BY channel_messages.created_at DESC LIMIT 1)`,
+      lastMessageContent: sql<string | null>`(SELECT channel_messages.content FROM channel_messages WHERE channel_messages.session_id = sessions.id ORDER BY channel_messages.created_at DESC LIMIT 1)`,
+      lastMessageAt: sql<string | null>`(SELECT channel_messages.created_at FROM channel_messages WHERE channel_messages.session_id = sessions.id ORDER BY channel_messages.created_at DESC LIMIT 1)`,
     })
     .from(sessions)
-    .leftJoin(agents, and(eq(agents.sessionId, sessions.id), isNull(agents.parentAgentId)))
     .orderBy(sql`${sessions.startedAt} DESC`)
     .limit(limit)
     .all();
 
-  return rows.map((r) => ({
-    id: r.id,
-    projectId: r.projectId,
-    title: r.title,
-    status: r.status,
-    startedAt: r.startedAt,
-    endedAt: r.endedAt,
-    totalTokensIn: r.totalTokensIn,
-    totalTokensOut: r.totalTokensOut,
-    isBridge: r.rootRole === 'bridge',
-    agentCount: Number(r.agentCount ?? 0),
-    runningAgentCount: Number(r.runningAgentCount ?? 0),
-    channelMessageCount: Number(r.channelMessageCount ?? 0),
-    docCount: Number(r.docCount ?? 0),
-    testResultCount: Number(r.testResultCount ?? 0),
-    toolCallCount: Number(r.toolCallCount ?? 0),
-    runningToolCallCount: Number(r.runningToolCallCount ?? 0),
-    lastActivityAt: r.lastActivityAt,
-    lastChannelMessage:
-      r.lastMessageContent && r.lastMessageFromName && r.lastMessageAt
-        ? { fromAgentName: r.lastMessageFromName, content: r.lastMessageContent, at: r.lastMessageAt }
-        : null,
-  }));
+  return rows.map((r) => {
+    const lastAt = toIso(r.lastMessageAt);
+    return {
+      id: r.id,
+      projectId: r.projectId,
+      title: r.title,
+      status: r.status,
+      startedAt: r.startedAt,
+      endedAt: r.endedAt,
+      totalTokensIn: r.totalTokensIn,
+      totalTokensOut: r.totalTokensOut,
+      isBridge: Boolean(r.isBridge),
+      agentCount: Number(r.agentCount ?? 0),
+      runningAgentCount: Number(r.runningAgentCount ?? 0),
+      channelMessageCount: Number(r.channelMessageCount ?? 0),
+      docCount: Number(r.docCount ?? 0),
+      testResultCount: Number(r.testResultCount ?? 0),
+      toolCallCount: Number(r.toolCallCount ?? 0),
+      runningToolCallCount: Number(r.runningToolCallCount ?? 0),
+      lastActivityAt: toIso(r.lastActivityAt),
+      lastChannelMessage:
+        r.lastMessageContent && r.lastMessageFromName && lastAt
+          ? { fromAgentName: r.lastMessageFromName, content: r.lastMessageContent, at: lastAt }
+          : null,
+    };
+  });
 }
 
 /**
@@ -122,25 +139,25 @@ export function getSession(sessionId: string): SessionListRow | null {
       endedAt: sessions.endedAt,
       totalTokensIn: sessions.totalTokensIn,
       totalTokensOut: sessions.totalTokensOut,
-      rootRole: agents.role,
-      agentCount: sql<number>`(SELECT count(*) FROM ${agents} WHERE ${agents.sessionId} = ${sessions.id})`,
-      runningAgentCount: sql<number>`(SELECT count(*) FROM ${agents} WHERE ${agents.sessionId} = ${sessions.id} AND ${agents.status} IN ('running','pending','waiting_tool'))`,
-      channelMessageCount: sql<number>`(SELECT count(*) FROM ${channelMessages} WHERE ${channelMessages.sessionId} = ${sessions.id})`,
-      docCount: sql<number>`(SELECT count(*) FROM ${docs} WHERE ${docs.sessionId} = ${sessions.id})`,
-      testResultCount: sql<number>`(SELECT count(*) FROM ${testResults} WHERE ${testResults.sessionId} = ${sessions.id})`,
-      toolCallCount: sql<number>`(SELECT count(*) FROM ${toolCalls} WHERE ${toolCalls.sessionId} = ${sessions.id})`,
-      runningToolCallCount: sql<number>`(SELECT count(*) FROM ${toolCalls} WHERE ${toolCalls.sessionId} = ${sessions.id} AND ${toolCalls.status} = 'running')`,
-      lastActivityAt: sql<string | null>`(SELECT max(${events.createdAt}) FROM ${events} WHERE ${events.sessionId} = ${sessions.id})`,
-      lastMessageFromName: sql<string | null>`(SELECT ${channelMessages.fromAgentName} FROM ${channelMessages} WHERE ${channelMessages.sessionId} = ${sessions.id} ORDER BY ${channelMessages.createdAt} DESC LIMIT 1)`,
-      lastMessageContent: sql<string | null>`(SELECT ${channelMessages.content} FROM ${channelMessages} WHERE ${channelMessages.sessionId} = ${sessions.id} ORDER BY ${channelMessages.createdAt} DESC LIMIT 1)`,
-      lastMessageAt: sql<string | null>`(SELECT ${channelMessages.createdAt} FROM ${channelMessages} WHERE ${channelMessages.sessionId} = ${sessions.id} ORDER BY ${channelMessages.createdAt} DESC LIMIT 1)`,
+      isBridge: sessions.isBridge,
+      agentCount: sql<number>`(SELECT count(*) FROM agents WHERE agents.session_id = sessions.id)`,
+      runningAgentCount: sql<number>`(SELECT count(*) FROM agents WHERE agents.session_id = sessions.id AND agents.status IN ('running','pending','waiting_tool'))`,
+      channelMessageCount: sql<number>`(SELECT count(*) FROM channel_messages WHERE channel_messages.session_id = sessions.id)`,
+      docCount: sql<number>`(SELECT count(*) FROM docs WHERE docs.session_id = sessions.id)`,
+      testResultCount: sql<number>`(SELECT count(*) FROM test_results WHERE test_results.session_id = sessions.id)`,
+      toolCallCount: sql<number>`(SELECT count(*) FROM tool_calls WHERE tool_calls.session_id = sessions.id)`,
+      runningToolCallCount: sql<number>`(SELECT count(*) FROM tool_calls WHERE tool_calls.session_id = sessions.id AND tool_calls.status = 'running')`,
+      lastActivityAt: sql<string | null>`(SELECT max(events.created_at) FROM events WHERE events.session_id = sessions.id)`,
+      lastMessageFromName: sql<string | null>`(SELECT channel_messages.from_agent_name FROM channel_messages WHERE channel_messages.session_id = sessions.id ORDER BY channel_messages.created_at DESC LIMIT 1)`,
+      lastMessageContent: sql<string | null>`(SELECT channel_messages.content FROM channel_messages WHERE channel_messages.session_id = sessions.id ORDER BY channel_messages.created_at DESC LIMIT 1)`,
+      lastMessageAt: sql<string | null>`(SELECT channel_messages.created_at FROM channel_messages WHERE channel_messages.session_id = sessions.id ORDER BY channel_messages.created_at DESC LIMIT 1)`,
     })
     .from(sessions)
-    .leftJoin(agents, and(eq(agents.sessionId, sessions.id), isNull(agents.parentAgentId)))
     .where(eq(sessions.id, sessionId))
     .get();
 
   if (!r) return null;
+  const lastAt = toIso(r.lastMessageAt);
   return {
     id: r.id,
     projectId: r.projectId,
@@ -150,7 +167,7 @@ export function getSession(sessionId: string): SessionListRow | null {
     endedAt: r.endedAt,
     totalTokensIn: r.totalTokensIn,
     totalTokensOut: r.totalTokensOut,
-    isBridge: r.rootRole === 'bridge',
+    isBridge: Boolean(r.isBridge),
     agentCount: Number(r.agentCount ?? 0),
     runningAgentCount: Number(r.runningAgentCount ?? 0),
     channelMessageCount: Number(r.channelMessageCount ?? 0),
@@ -158,10 +175,10 @@ export function getSession(sessionId: string): SessionListRow | null {
     testResultCount: Number(r.testResultCount ?? 0),
     toolCallCount: Number(r.toolCallCount ?? 0),
     runningToolCallCount: Number(r.runningToolCallCount ?? 0),
-    lastActivityAt: r.lastActivityAt,
+    lastActivityAt: toIso(r.lastActivityAt),
     lastChannelMessage:
-      r.lastMessageContent && r.lastMessageFromName && r.lastMessageAt
-        ? { fromAgentName: r.lastMessageFromName, content: r.lastMessageContent, at: r.lastMessageAt }
+      r.lastMessageContent && r.lastMessageFromName && lastAt
+        ? { fromAgentName: r.lastMessageFromName, content: r.lastMessageContent, at: lastAt }
         : null,
   };
 }
@@ -267,10 +284,10 @@ export function listSessionAgents(sessionId: string): SessionAgentRow[] {
       endedAt: agents.endedAt,
       tokensIn: agents.tokensIn,
       tokensOut: agents.tokensOut,
-      toolCallCount: sql<number>`(SELECT count(*) FROM ${toolCalls} WHERE ${toolCalls.agentId} = ${agents.id})`,
-      runningToolCallCount: sql<number>`(SELECT count(*) FROM ${toolCalls} WHERE ${toolCalls.agentId} = ${agents.id} AND ${toolCalls.status} = 'running')`,
-      dmCount: sql<number>`(SELECT count(*) FROM direct_messages WHERE session_id = ${sessionId} AND (from_agent_id = ${agents.id} OR to_agent_id = ${agents.id}))`,
-      channelMessageCount: sql<number>`(SELECT count(*) FROM ${channelMessages} WHERE ${channelMessages.sessionId} = ${sessionId} AND ${channelMessages.fromAgentId} = ${agents.id})`,
+      toolCallCount: sql<number>`(SELECT count(*) FROM tool_calls WHERE tool_calls.agent_id = agents.id)`,
+      runningToolCallCount: sql<number>`(SELECT count(*) FROM tool_calls WHERE tool_calls.agent_id = agents.id AND tool_calls.status = 'running')`,
+      dmCount: sql<number>`(SELECT count(*) FROM direct_messages WHERE direct_messages.session_id = ${sessionId} AND (direct_messages.from_agent_id = agents.id OR direct_messages.to_agent_id = agents.id))`,
+      channelMessageCount: sql<number>`(SELECT count(*) FROM channel_messages WHERE channel_messages.session_id = ${sessionId} AND channel_messages.from_agent_id = agents.id)`,
     })
     .from(agents)
     .where(eq(agents.sessionId, sessionId))
@@ -308,6 +325,51 @@ export function finalizeAgent(
     .update(agents)
     .set({ ...patch, endedAt: new Date().toISOString() })
     .where(eq(agents.id, agentId))
+    .run();
+}
+
+/**
+ * Insert a `tool_calls` row when the SDK translator observes an
+ * `agent.tool.use.start` event. Pairs with `finishToolCall()` to
+ * keep the dashboard's `toolCallCount` KPI accurate for SDK-spawned
+ * sessions (the MCP HTTP shim path writes its own rows independently).
+ */
+export function insertToolCall(row: {
+  id: string;
+  sessionId: string;
+  agentId: string;
+  toolName: string;
+  input: unknown;
+  startedAt: string;
+}): void {
+  getDb()
+    .insert(toolCalls)
+    .values({
+      id: row.id,
+      sessionId: row.sessionId,
+      agentId: row.agentId,
+      toolName: row.toolName,
+      input: row.input,
+      status: 'running',
+      startedAt: row.startedAt,
+    })
+    .run();
+}
+
+export function finishToolCall(
+  toolCallId: string,
+  patch: { output: unknown; isError: boolean; durationMs: number; endedAt: string },
+): void {
+  getDb()
+    .update(toolCalls)
+    .set({
+      output: patch.output,
+      isError: patch.isError,
+      status: patch.isError ? 'failed' : 'completed',
+      durationMs: patch.durationMs,
+      endedAt: patch.endedAt,
+    })
+    .where(eq(toolCalls.id, toolCallId))
     .run();
 }
 

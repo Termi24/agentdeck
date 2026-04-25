@@ -5,7 +5,15 @@ import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentDeckEvent } from '@agentdeck/shared';
 import type { EventBus } from './event-bus.js';
 import { config } from './config.js';
-import { appendEvent, finalizeAgent, finalizeSession, insertAgent, insertSession } from './persistence.js';
+import {
+  appendEvent,
+  finalizeAgent,
+  finalizeSession,
+  finishToolCall,
+  insertAgent,
+  insertSession,
+  insertToolCall,
+} from './persistence.js';
 import { registerBridgeSession, unregisterBridgeSession } from './services/bridge-watchdog.js';
 import { translate, type MultiAgentContext } from './sdk-translator.js';
 import { resolveMcpServerCommand } from './mcp-bootstrap.js';
@@ -54,6 +62,7 @@ export function createSessionManager(eventBus: EventBus, logger?: { error: (msg:
         rootPrompt: prompt,
         workspacePath,
         status: 'running',
+        isBridge: bridge ?? false,
         startedAt: now,
       });
       insertAgent({
@@ -168,6 +177,11 @@ async function runSession(args: {
         includePartialMessages: true,
         mcpServers: { agentdeck: mcpServer },
         permissionMode: 'bypassPermissions',
+        // Keep this list in sync with packages/mcp/src/tools.ts —
+        // every tool the MCP server exposes must be pre-approved here,
+        // otherwise web-UI-launched SDK orchestrators get a permission
+        // prompt mid-run that will never be answered (headless SDK).
+        // Last sync: 2026-04-25 (37 tools).
         allowedTools: [
           'mcp__agentdeck__list_procedures',
           'mcp__agentdeck__run_test_procedure',
@@ -196,6 +210,21 @@ async function runSession(args: {
           'mcp__agentdeck__browser_wait_for',
           'mcp__agentdeck__browser_press_key',
           'mcp__agentdeck__browser_screenshot',
+          // Post-IndusForge primitives — were missing from the
+          // SDK orchestrator allowlist (security-auditor 2026-04-25 WARN
+          // #8). Without them the web-UI-launched orchestrator can't
+          // create isolated browser contexts, validate sub-agent claims,
+          // walk the methodology, or track campaigns.
+          'mcp__agentdeck__browser_new_context',
+          'mcp__agentdeck__browser_dispose_context',
+          'mcp__agentdeck__validate_claim',
+          'mcp__agentdeck__api_inventory',
+          'mcp__agentdeck__read_methodology',
+          'mcp__agentdeck__start_qa_campaign',
+          'mcp__agentdeck__record_campaign_metric',
+          'mcp__agentdeck__submit_campaign_retrospective',
+          'mcp__agentdeck__end_campaign',
+          'mcp__agentdeck__set_agent_identity',
         ],
       },
     });
@@ -218,6 +247,26 @@ async function runSession(args: {
       }
 
       for (const event of result.events) {
+        // Mirror SDK tool_use blocks into the tool_calls table so the
+        // dashboard's per-agent and per-session toolCallCount stays
+        // truthful — appendEvent alone only fills `events`.
+        if (event.type === 'agent.tool.use.start') {
+          insertToolCall({
+            id: event.toolCallId,
+            sessionId,
+            agentId: event.agentId,
+            toolName: event.toolName,
+            input: event.input,
+            startedAt: event.at,
+          });
+        } else if (event.type === 'agent.tool.use.result') {
+          finishToolCall(event.toolCallId, {
+            output: event.output,
+            isError: event.isError,
+            durationMs: event.durationMs,
+            endedAt: event.at,
+          });
+        }
         emit(eventBus, event);
       }
 

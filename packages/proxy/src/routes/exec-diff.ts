@@ -15,7 +15,7 @@ export const registerExecDiffRoutes: FastifyPluginAsync = async (app) => {
       .where(and(eq(execRuns.sessionId, sessionId), eq(execRuns.id, rid)))
       .get();
     if (!row) return reply.notFound(`exec run ${rid} not found`);
-    return row;
+    return { ...row, createdAt: toIsoTimestamp(row.createdAt) };
   });
 
   app.get('/sessions/:id/exec-diff', async (request, reply) => {
@@ -36,6 +36,13 @@ export const registerExecDiffRoutes: FastifyPluginAsync = async (app) => {
     };
   });
 };
+
+// Mirror persistence.ts:toIso() — SQLite stores "YYYY-MM-DD HH:MM:SS" with no
+// timezone, which Chrome parses as local time. Force ISO 8601 UTC at the boundary.
+function toIsoTimestamp(dt: string): string {
+  if (dt.includes('T')) return dt;
+  return dt.replace(' ', 'T') + 'Z';
+}
 
 function simpleLineDiff(a: string, b: string): { added: string[]; removed: string[] } {
   const linesA = new Set(a.split('\n'));
