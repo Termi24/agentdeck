@@ -181,7 +181,7 @@ async function runSession(args: {
         // every tool the MCP server exposes must be pre-approved here,
         // otherwise web-UI-launched SDK orchestrators get a permission
         // prompt mid-run that will never be answered (headless SDK).
-        // Last sync: 2026-04-25 (37 tools).
+        // Last sync: 2026-04-26 (42 tools, v0.0.4).
         allowedTools: [
           'mcp__agentdeck__list_procedures',
           'mcp__agentdeck__run_test_procedure',
@@ -218,7 +218,16 @@ async function runSession(args: {
           'mcp__agentdeck__browser_new_context',
           'mcp__agentdeck__browser_dispose_context',
           'mcp__agentdeck__validate_claim',
+          'mcp__agentdeck__validate_claims_bulk',
           'mcp__agentdeck__api_inventory',
+          // v0.0.4 cousin scanners — schema/events/mcp-tools/react-hooks
+          // cartography for audit sub-agents. Without these in the
+          // allowlist, audit-schema / audit-event-replay procedures stall
+          // on a permission prompt.
+          'mcp__agentdeck__schema_inventory',
+          'mcp__agentdeck__events_inventory',
+          'mcp__agentdeck__mcp_tools_inventory',
+          'mcp__agentdeck__react_hooks_inventory',
           'mcp__agentdeck__read_methodology',
           'mcp__agentdeck__start_qa_campaign',
           'mcp__agentdeck__record_campaign_metric',
