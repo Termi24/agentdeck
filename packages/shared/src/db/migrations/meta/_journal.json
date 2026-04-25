@@ -22,6 +22,20 @@
       "when": 1777086408514,
       "tag": "0002_bright_scourge",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1777090870671,
+      "tag": "0003_elite_junta",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1777152004926,
+      "tag": "0004_gifted_darwin",
+      "breakpoints": true
     }
   ]
 }

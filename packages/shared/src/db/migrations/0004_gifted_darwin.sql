@@ -1,0 +1,1 @@
+CREATE INDEX `events_session_created_idx` ON `events` (`session_id`,`created_at`);

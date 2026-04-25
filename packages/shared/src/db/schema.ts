@@ -12,6 +12,10 @@ export const sessions = sqliteTable('sessions', {
     .default('pending'),
   totalTokensIn: integer('total_tokens_in').notNull().default(0),
   totalTokensOut: integer('total_tokens_out').notNull().default(0),
+  // True when the session was bootstrapped by a CLI bridge (no SDK query).
+  // Persistent flag so set_agent_identity renaming the root agent's role
+  // can't break bridge detection (used by hub UI label + watchdog reaper).
+  isBridge: integer('is_bridge', { mode: 'boolean' }).notNull().default(false),
   startedAt: text('started_at').notNull().default(sql`(current_timestamp)`),
   endedAt: text('ended_at'),
 });
@@ -59,6 +63,10 @@ export const events = sqliteTable(
     sessionSeqIdx: index('events_session_seq_idx').on(table.sessionId, table.seq),
     agentIdx: index('events_agent_idx').on(table.agentId),
     typeIdx: index('events_type_idx').on(table.type),
+    // Used by getSession.lastActivityAt — `MAX(events.created_at) WHERE
+    // session_id = ?`. Without this, the MAX is O(N) on a session_id-filtered
+    // scan; with it, O(log N) via index seek to the rightmost key.
+    sessionCreatedIdx: index('events_session_created_idx').on(table.sessionId, table.createdAt),
   }),
 );
 

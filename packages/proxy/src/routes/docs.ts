@@ -5,7 +5,7 @@ import { and, eq, asc } from 'drizzle-orm';
 import { docs } from '@agentdeck/shared';
 import { getDb } from '../db.js';
 import type { EventBus } from '../event-bus.js';
-import { appendEvent } from '../persistence.js';
+import { appendEvent, inTx } from '../persistence.js';
 
 const PublishBody = z.object({
   path: z.string().min(1),
@@ -27,36 +27,52 @@ export const registerDocsRoutes: FastifyPluginAsync<{ eventBus: EventBus }> = as
 
     const now = new Date().toISOString();
     const id = existing?.id ?? randomUUID();
-    if (existing) {
-      getDb()
-        .update(docs)
-        .set({ content: parsed.data.content, updatedByAgentId: parsed.data.byAgentId, updatedAt: now })
-        .where(eq(docs.id, id))
-        .run();
-    } else {
-      getDb()
-        .insert(docs)
-        .values({
-          id,
+    // First write of this path → `doc.published`. Subsequent rewrites of
+    // the same path → `doc.updated`. Decoupled so a naïve
+    // `count(events.type='doc.published')` reducer matches `count(docs)`
+    // without needing per-path dedup (the previous code emitted the same
+    // type on insert and update, breaking that invariant — see
+    // event-replay-auditor 2026-04-25).
+    const event = existing
+      ? {
+          type: 'doc.updated' as const,
           sessionId,
+          docId: id,
           path: parsed.data.path,
-          content: parsed.data.content,
-          updatedByAgentId: parsed.data.byAgentId,
-          createdAt: now,
-          updatedAt: now,
-        })
-        .run();
-    }
-
-    const event = {
-      type: 'doc.published' as const,
-      sessionId,
-      docId: id,
-      path: parsed.data.path,
-      byAgentId: parsed.data.byAgentId,
-      at: now,
-    };
-    appendEvent(event);
+          byAgentId: parsed.data.byAgentId,
+          at: now,
+        }
+      : {
+          type: 'doc.published' as const,
+          sessionId,
+          docId: id,
+          path: parsed.data.path,
+          byAgentId: parsed.data.byAgentId,
+          at: now,
+        };
+    inTx(() => {
+      if (existing) {
+        getDb()
+          .update(docs)
+          .set({ content: parsed.data.content, updatedByAgentId: parsed.data.byAgentId, updatedAt: now })
+          .where(eq(docs.id, id))
+          .run();
+      } else {
+        getDb()
+          .insert(docs)
+          .values({
+            id,
+            sessionId,
+            path: parsed.data.path,
+            content: parsed.data.content,
+            updatedByAgentId: parsed.data.byAgentId,
+            createdAt: now,
+            updatedAt: now,
+          })
+          .run();
+      }
+      appendEvent(event);
+    });
     eventBus.emit(event);
 
     return reply.code(existing ? 200 : 201).send({ docId: id, at: now });

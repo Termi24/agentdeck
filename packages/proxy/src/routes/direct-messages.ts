@@ -5,7 +5,7 @@ import { and, eq, or, asc } from 'drizzle-orm';
 import { directMessages } from '@agentdeck/shared';
 import { getDb } from '../db.js';
 import type { EventBus } from '../event-bus.js';
-import { appendEvent } from '../persistence.js';
+import { appendEvent, inTx } from '../persistence.js';
 
 const Body = z.object({
   fromAgentId: z.string().min(1),
@@ -27,7 +27,6 @@ export const registerDmRoutes: FastifyPluginAsync<{ eventBus: EventBus }> = asyn
     if (!parsed.success) return reply.badRequest(parsed.error.message);
     const id = randomUUID();
     const at = new Date().toISOString();
-    getDb().insert(directMessages).values({ id, sessionId, ...parsed.data, createdAt: at }).run();
     const event = {
       type: 'dm.message.posted' as const,
       sessionId,
@@ -38,7 +37,10 @@ export const registerDmRoutes: FastifyPluginAsync<{ eventBus: EventBus }> = asyn
       content: parsed.data.content,
       at,
     };
-    appendEvent(event);
+    inTx(() => {
+      getDb().insert(directMessages).values({ id, sessionId, ...parsed.data, createdAt: at }).run();
+      appendEvent(event);
+    });
     eventBus.emit(event);
     return reply.code(201).send({ messageId: id, at });
   });
