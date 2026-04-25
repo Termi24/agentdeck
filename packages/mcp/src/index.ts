@@ -18,13 +18,20 @@ Web UI: http://127.0.0.1:3000
 
 When the user asks to test, audit, QA, or "use agentdeck" on a project:
 
-0. IDENTITY FIRST. The bridge session that was just created for you has a
-   placeholder name ("unnamed-cli" or similar). Before doing anything else,
-   ASK the user: "How should I be identified in the agentdeck hub? (e.g.
-   'claude-code-orchestrator', 'cursor-runner', 'desktop-claude'…)" Then call
-   mcp__agentdeck__set_agent_identity({ name: <user-chosen>, role: <optional> })
-   so the hub UI shows a meaningful name. Skip this step ONLY if the user
-   pre-supplied a name.
+0a. URLs FIRST. The very first tool call (any tool) returns a header that
+    contains the dashboard URL, the campaigns URL, and your bridged-session
+    URL. RELAY these URLs to the user verbatim in your next message so they
+    can open the dashboard and watch the campaign live. The dashboard port
+    may differ between runs (auto-spawn picks the first free port from
+    3000-3010 — same logic for proxy on 4317-4327), so do NOT hardcode them.
+
+0b. IDENTITY. The bridge session that was just created for you has a
+    placeholder name ("unnamed-cli" or similar). Before doing anything else
+    intensive, ASK the user: "How should I be identified in the agentdeck
+    hub? (e.g. 'claude-code-orchestrator', 'cursor-runner', 'desktop-claude'…)"
+    Then call mcp__agentdeck__set_agent_identity({ name: <user-chosen>,
+    role: <optional> }) so the hub UI shows a meaningful name. Skip this
+    step ONLY if the user pre-supplied a name.
 
 1. Call mcp__agentdeck__read_methodology({ section: "overview" }) to load the
    pipeline and the 8 non-negotiable principles. Then call

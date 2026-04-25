@@ -81,6 +81,10 @@ function findNextCli() {
 async function main() {
   log('launcher', `repo: ${repoRoot}`);
 
+  const proxyPort = Number(process.env.PROXY_PORT ?? 4317);
+  const webPort = Number(process.env.NEXT_PORT ?? 3000);
+  const autoSpawn = process.env.AGENTDECK_AUTO_SPAWN === '1';
+
   const needInstall =
     !existsSync(resolve(repoRoot, 'node_modules')) || !existsSync(resolve(repoRoot, 'packages/proxy/node_modules'));
   if (needInstall) {
@@ -103,18 +107,18 @@ async function main() {
   const proxyDir = resolve(repoRoot, 'packages/proxy');
   const webDir = resolve(repoRoot, 'apps/web');
 
-  log('launcher', 'starting proxy');
+  log('launcher', `starting proxy on :${proxyPort}`);
   const proxy = spawn(process.execPath, [tsxCli, 'watch', 'src/index.ts'], {
     cwd: proxyDir,
-    env: process.env,
+    env: { ...process.env, PROXY_PORT: String(proxyPort) },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   pipeLabeled(proxy, 'proxy');
 
-  log('launcher', 'starting web');
-  const web = spawn(process.execPath, [nextCli, 'dev', '--port', '3000', '--hostname', '127.0.0.1'], {
+  log('launcher', `starting web on :${webPort}`);
+  const web = spawn(process.execPath, [nextCli, 'dev', '--port', String(webPort), '--hostname', '127.0.0.1'], {
     cwd: webDir,
-    env: process.env,
+    env: { ...process.env, NEXT_PUBLIC_PROXY_URL: `http://127.0.0.1:${proxyPort}` },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   pipeLabeled(web, 'web');
@@ -134,12 +138,16 @@ async function main() {
 
   try {
     await Promise.all([
-      waitForTcp('127.0.0.1', 4317, 'proxy'),
-      waitForTcp('127.0.0.1', 3000, 'web'),
+      waitForTcp('127.0.0.1', proxyPort, 'proxy'),
+      waitForTcp('127.0.0.1', webPort, 'web'),
     ]);
-    const url = 'http://127.0.0.1:3000';
-    log('launcher', `opening browser at ${url}`);
-    openBrowser(url);
+    const url = `http://127.0.0.1:${webPort}`;
+    if (!autoSpawn) {
+      log('launcher', `opening browser at ${url}`);
+      openBrowser(url);
+    } else {
+      log('launcher', `auto-spawned by MCP; not opening browser. dashboard: ${url}`);
+    }
     log('launcher', 'agentdeck running — press Ctrl+C to stop');
   } catch (err) {
     log('launcher', `startup failed: ${err?.message ?? err}`);

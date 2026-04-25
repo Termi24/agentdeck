@@ -1,7 +1,10 @@
 import { z } from 'zod';
 
 const Schema = z.object({
-  AGENTDECK_PROXY_URL: z.string().url().default('http://127.0.0.1:4317'),
+  // Optional explicit proxy URL. If set AND reachable, MCP uses it as-is.
+  // Otherwise the MCP auto-spawns the launcher and picks free ports — see
+  // proxy-spawner.ts. Most users should leave this UNSET.
+  AGENTDECK_PROXY_URL: z.string().url().optional(),
   AGENTDECK_SESSION_ID: z.string().optional(),
   AGENTDECK_AGENT_ID: z.string().optional(),
   // Optional bootstrap name. The agent is expected to call set_agent_identity

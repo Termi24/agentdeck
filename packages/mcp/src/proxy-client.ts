@@ -1,4 +1,5 @@
 import { config } from './config.js';
+import { ensureProxyReachable, type EnsureProxyResult } from './proxy-spawner.js';
 
 interface BootstrapInfo {
   sessionId: string;
@@ -9,16 +10,20 @@ interface BootstrapInfo {
 const HEARTBEAT_INTERVAL_MS = 30 * 1000;
 
 export class ProxyClient {
-  private readonly baseUrl: string;
+  private baseUrl: string;
+  private webBaseUrl: string;
   private readonly projectId: string;
   private sessionId: string | null;
   private agentId: string | null;
   private bootstrapPromise: Promise<BootstrapInfo> | null = null;
   private announcedFirstCall = false;
   private heartbeatTimer: NodeJS.Timeout | null = null;
+  private spawnInfo: EnsureProxyResult | null = null;
 
   constructor() {
-    this.baseUrl = config.AGENTDECK_PROXY_URL;
+    // Provisional values — replaced by ensureProxyReachable() before any HTTP call.
+    this.baseUrl = config.AGENTDECK_PROXY_URL ?? 'http://127.0.0.1:4317';
+    this.webBaseUrl = 'http://127.0.0.1:3000';
     this.projectId = config.AGENTDECK_PROJECT_ID;
     this.sessionId = config.AGENTDECK_SESSION_ID ?? null;
     this.agentId = config.AGENTDECK_AGENT_ID ?? null;
@@ -67,8 +72,15 @@ export class ProxyClient {
   }
 
   private async bootstrap(): Promise<BootstrapInfo> {
-    const title = `claude-cli @ ${new Date().toISOString().slice(0, 19)}`;
-    const prompt = 'External Claude CLI session bridged via agentdeck MCP.';
+    // Step 1: ensure the proxy is reachable. Auto-spawns the launcher if no
+    // proxy is up. Picks free ports if 4317/3000 are taken.
+    this.spawnInfo = await ensureProxyReachable({ explicitProxyUrl: config.AGENTDECK_PROXY_URL });
+    this.baseUrl = `http://127.0.0.1:${this.spawnInfo.proxyPort}`;
+    this.webBaseUrl = `http://127.0.0.1:${this.spawnInfo.webPort}`;
+
+    // Step 2: bootstrap the bridge session against the (now-reachable) proxy.
+    const title = `${config.AGENTDECK_AGENT_NAME} @ ${new Date().toISOString().slice(0, 19)}`;
+    const prompt = 'External CLI session bridged via agentdeck MCP.';
     const res = await fetch(`${this.baseUrl}/sessions`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -82,9 +94,7 @@ export class ProxyClient {
       }),
     });
     if (!res.ok) {
-      throw new Error(
-        `agentdeck proxy not reachable at ${this.baseUrl} (${res.status}). Is it running? Double-click start.cmd in your agentdeck folder.`,
-      );
+      throw new Error(`agentdeck proxy reachable on :${this.spawnInfo.proxyPort} but session create returned ${res.status}.`);
     }
     const data = (await res.json()) as { sessionId: string; rootAgentId: string };
     this.sessionId = data.sessionId;
@@ -94,14 +104,21 @@ export class ProxyClient {
   }
 
   sessionUrl(): string {
-    const webUrl = this.baseUrl.replace(/:\d+$/, ':3000');
-    return `${webUrl}/sessions/${this.sessionId ?? ''}`;
+    return `${this.webBaseUrl}/sessions/${this.sessionId ?? ''}`;
   }
 
   maybeSessionBanner(): string | null {
     if (this.announcedFirstCall) return null;
     this.announcedFirstCall = true;
-    return `[agentdeck] bridged session: ${this.sessionUrl()}`;
+    const lines: string[] = [];
+    if (this.spawnInfo?.freshSpawn) {
+      lines.push(`[agentdeck] auto-spawned proxy on :${this.spawnInfo.proxyPort} and dashboard on :${this.spawnInfo.webPort}`);
+    }
+    lines.push(`[agentdeck] dashboard: ${this.webBaseUrl}`);
+    lines.push(`[agentdeck] campaigns: ${this.webBaseUrl}/campaigns`);
+    lines.push(`[agentdeck] bridged session: ${this.sessionUrl()}`);
+    lines.push(`[agentdeck] tell the human these URLs at the start of the conversation so they can supervise live.`);
+    return lines.join('\n');
   }
 
   currentAgentContext(): { agentId: string | null; agentName: string | null } | null {
