@@ -1,10 +1,10 @@
 {
   "name": "@agentdeck/web",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev --port 3000 --hostname 127.0.0.1",
+    "dev": "next dev --turbopack --port 3000 --hostname 127.0.0.1",
     "build": "next build",
     "start": "next start --port 3000 --hostname 127.0.0.1",
     "lint": "next lint",
