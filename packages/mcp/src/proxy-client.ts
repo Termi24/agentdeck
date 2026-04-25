@@ -151,6 +151,26 @@ export class ProxyClient {
     return (await res.json()) as T;
   }
 
+  /**
+   * Like `request` but treats 404 as a soft outcome — returns the parsed
+   * body instead of throwing. Used for browser_click / browser_type / …
+   * where "element not found" is expected information for the agent, not
+   * a transport error.
+   */
+  private async requestSoft<T>(method: string, path: string, body?: unknown): Promise<T> {
+    const res = await fetch(`${this.baseUrl}${path}`, {
+      method,
+      headers: body ? { 'content-type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (res.status === 204) return undefined as T;
+    if (res.ok || res.status === 404) {
+      return (await res.json()) as T;
+    }
+    const text = await res.text();
+    throw new Error(`${method} ${path} → ${res.status}: ${text}`);
+  }
+
   listProcedures() {
     return this.request<{ procedures: Array<{ name: string; format: 'yaml' | 'md'; description: string | null }> }>(
       'GET',
@@ -311,28 +331,41 @@ export class ProxyClient {
       `/sessions/${this.requireSession()}/browser/snapshot?${qs}`,
     );
   }
-  browserClick(selector: string) {
-    return this.request<{ ok: true }>('POST', `/sessions/${this.requireSession()}/browser/click`, {
+  browserClick(selector: string, opts?: { timeoutMs?: number }) {
+    return this.requestSoft<
+      { ok: true } | { ok: false; error: 'element not found'; selector: string; timeoutMs: number }
+    >('POST', `/sessions/${this.requireSession()}/browser/click`, {
       selector,
       agentId: this.requireAgent(),
+      ...opts,
     });
   }
-  browserType(selector: string, text: string, pressEnter?: boolean) {
-    return this.request<{ ok: true }>('POST', `/sessions/${this.requireSession()}/browser/type`, {
+  browserType(selector: string, text: string, pressEnter?: boolean, opts?: { timeoutMs?: number }) {
+    return this.requestSoft<
+      { ok: true } | { ok: false; error: 'element not found'; selector: string; timeoutMs: number }
+    >('POST', `/sessions/${this.requireSession()}/browser/type`, {
       selector,
       text,
       pressEnter,
       agentId: this.requireAgent(),
+      ...opts,
     });
   }
-  browserFillForm(fields: Array<{ selector: string; value: string }>) {
-    return this.request<{ ok: true; filled: number }>('POST', `/sessions/${this.requireSession()}/browser/fill-form`, {
+  browserFillForm(fields: Array<{ selector: string; value: string }>, opts?: { timeoutMs?: number }) {
+    return this.requestSoft<
+      | { ok: true; filled: number }
+      | { ok: false; error: 'element not found'; selector: string; filled: number; total: number; timeoutMs: number }
+    >('POST', `/sessions/${this.requireSession()}/browser/fill-form`, {
       fields,
       agentId: this.requireAgent(),
+      ...opts,
     });
   }
   browserWaitFor(opts: { text?: string; textGone?: string; selector?: string; timeoutMs?: number }) {
-    return this.request<{ ok: true }>('POST', `/sessions/${this.requireSession()}/browser/wait-for`, {
+    return this.request<
+      | { ok: true; satisfied: true }
+      | { ok: true; satisfied: false; reason: 'timeout'; timeoutMs: number; waitedFor: Record<string, string> }
+    >('POST', `/sessions/${this.requireSession()}/browser/wait-for`, {
       ...opts,
       agentId: this.requireAgent(),
     });
@@ -375,6 +408,8 @@ export class ProxyClient {
     expectJsonContains?: Record<string, unknown>;
     expectBodyIncludes?: string;
     timeoutMs?: number;
+    followRedirects?: boolean;
+    maxRedirects?: number;
   }) {
     return this.request<{
       ok: boolean;
@@ -386,23 +421,113 @@ export class ProxyClient {
       sampleBody: string;
       durationMs: number;
       contentType: string | null;
+      retries: number;
+      backoffMs: number;
+      redirectChain: Array<{ status: number; from: string; to: string; authorizationDropped: boolean }>;
+      finalUrl: string;
     }>('POST', `/sessions/${this.requireSession()}/validate-claim`, input);
   }
 
-  apiInventory(input: { framework: 'flask' | 'express' | 'fastapi' | 'fastify'; rootPath: string }) {
+  validateClaimsBulk(input: {
+    claims: Array<{
+      method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+      url: string;
+      headers?: Record<string, string>;
+      body?: unknown;
+      expectStatus?: number | '2xx' | '3xx' | '4xx' | '5xx';
+      expectJsonContains?: Record<string, unknown>;
+      expectBodyIncludes?: string;
+      timeoutMs?: number;
+      followRedirects?: boolean;
+      maxRedirects?: number;
+    }>;
+    parallelism?: number;
+  }) {
+    return this.request<{
+      results: Array<{
+        ok: boolean;
+        status?: number;
+        statusMatches?: boolean | null;
+        durationMs?: number;
+        sampleBody?: string;
+        mismatches?: string[];
+        error?: string;
+      }>;
+      total: number;
+      passed: number;
+      durationMs: number;
+    }>('POST', `/sessions/${this.requireSession()}/validate-claims/bulk`, input);
+  }
+
+  apiInventory(input: {
+    framework: 'flask' | 'express' | 'fastapi' | 'fastify';
+    rootPath: string;
+    summary?: boolean;
+    filter?: { method?: string; pathPrefix?: string; blueprint?: string };
+    limit?: number;
+    offset?: number;
+  }) {
     return this.request<{
       framework: string;
       rootPath: string;
       scannedFiles: number;
-      routes: Array<{
+      routes?: Array<{
         method: string;
         path: string;
         file: string;
         line: number;
         handler?: string;
         permissionRequired?: string;
+        blueprint?: string;
       }>;
+      summary?: {
+        total: number;
+        totalAfterFilter: number;
+        byMethod: Record<string, number>;
+        byBlueprint: Record<string, Record<string, number>>;
+      };
+      paging?: { offset: number; limit: number | null; returned: number; totalAfterFilter: number };
+      blueprintPrefixes?: Record<string, string>;
     }>('POST', `/sessions/${this.requireSession()}/api-inventory`, input);
+  }
+
+  schemaInventory(input: { rootPath: string }) {
+    return this.request<{
+      rootPath: string;
+      scannedFiles: number;
+      tables: Array<{
+        name: string;
+        file: string;
+        line: number;
+        columns: Array<{ name: string; type: string; primary: boolean; notNull: boolean; autoIncrement: boolean }>;
+        indexes: string[];
+        foreignKeys: string[];
+      }>;
+    }>('POST', `/sessions/${this.requireSession()}/schema-inventory`, input);
+  }
+
+  eventsInventory(input: { rootPath: string }) {
+    return this.request<{
+      rootPath: string;
+      scannedFiles: number;
+      discriminator: string | null;
+      events: Array<{ type: string; fields: string[]; file: string; line: number }>;
+    }>('POST', `/sessions/${this.requireSession()}/events-inventory`, input);
+  }
+
+  mcpToolsInventory(input: { rootPath: string }) {
+    return this.request<{
+      file: string;
+      tools: Array<{ name: string; description: string; inputSchema: string }>;
+    }>('POST', `/sessions/${this.requireSession()}/mcp-tools-inventory`, input);
+  }
+
+  reactHooksInventory(input: { rootPath: string }) {
+    return this.request<{
+      rootPath: string;
+      scannedFiles: number;
+      hooks: Array<{ name: string; kind: 'function' | 'const'; file: string; line: number }>;
+    }>('POST', `/sessions/${this.requireSession()}/react-hooks-inventory`, input);
   }
 
   readMethodology(section: string) {

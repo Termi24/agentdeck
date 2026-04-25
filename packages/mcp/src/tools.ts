@@ -134,14 +134,27 @@ export const CheckCancellationInput = z.object({});
 
 export const BrowserNavigateInput = z.object({ url: z.string().url() });
 export const BrowserSnapshotInput = z.object({});
-export const BrowserClickInput = z.object({ selector: z.string().min(1) });
+export const BrowserClickInput = z.object({
+  selector: z.string().min(1),
+  timeoutMs: z
+    .number()
+    .int()
+    .positive()
+    .max(60_000)
+    .default(3_000)
+    .describe(
+      'Per-locator wait in ms. Default 3000 — keeps optional/missing elements fail-fast instead of blocking 30 s on Playwright defaults. Bump if the element legitimately needs more time to mount.',
+    ),
+});
 export const BrowserTypeInput = z.object({
   selector: z.string().min(1),
   text: z.string(),
   pressEnter: z.boolean().optional(),
+  timeoutMs: z.number().int().positive().max(60_000).default(3_000),
 });
 export const BrowserFillFormInput = z.object({
   fields: z.array(z.object({ selector: z.string().min(1), value: z.string() })).min(1),
+  timeoutMs: z.number().int().positive().max(60_000).default(3_000),
 });
 export const BrowserWaitForInput = z.object({
   text: z.string().optional(),
@@ -177,6 +190,48 @@ export const ValidateClaimInput = z.object({
   timeoutMs: z.number().int().positive().max(120_000).optional(),
   maxRetries: z.number().int().min(0).max(10).optional(),
   maxBackoffMs: z.number().int().min(0).max(300_000).optional(),
+  followRedirects: z
+    .boolean()
+    .optional()
+    .describe(
+      'Follow 3xx redirects (default true). Set false to surface a trailing-slash 308 directly instead of silently following — useful when diagnosing "401 after auth-stripping redirect" issues.',
+    ),
+  maxRedirects: z.number().int().min(0).max(20).optional(),
+});
+
+export const ValidateClaimsBulkInput = z.object({
+  claims: z.array(ValidateClaimInput).min(1).max(100),
+  parallelism: z
+    .number()
+    .int()
+    .min(1)
+    .max(20)
+    .default(8)
+    .describe(
+      'Server-side concurrency. Default 8. Bump to 20 for fast localhost targets; drop to 1 for IP-rate-limited public SaaS where you risk 429.',
+    ),
+});
+
+export const SchemaInventoryInput = z.object({
+  rootPath: z.string().min(1).describe('Directory to scan for Drizzle sqliteTable() / pgTable() definitions.'),
+});
+
+export const EventsInventoryInput = z.object({
+  rootPath: z.string().min(1).describe('Directory to scan for zod discriminatedUnion event types.'),
+});
+
+export const McpToolsInventoryInput = z.object({
+  rootPath: z
+    .string()
+    .min(1)
+    .describe('Path to a packages/mcp/src/tools.ts (or equivalent) that exports a TOOL_DEFINITIONS array.'),
+});
+
+export const ReactHooksInventoryInput = z.object({
+  rootPath: z
+    .string()
+    .min(1)
+    .describe('Directory to scan recursively for React hooks (export function/const useXxx).'),
 });
 
 export const ApiInventoryInput = z.object({
@@ -190,6 +245,22 @@ export const ApiInventoryInput = z.object({
       threshold: z.number().min(0).max(1).optional(),
     })
     .optional(),
+  summary: z
+    .boolean()
+    .optional()
+    .describe(
+      'When true, omit the per-route list and return only aggregated counts (per blueprint × method). Use for first-pass exploration on large codebases (>200 routes) to avoid blowing the token budget; then call again with `filter` to drill in.',
+    ),
+  filter: z
+    .object({
+      method: z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']).optional(),
+      pathPrefix: z.string().min(1).optional(),
+      blueprint: z.string().min(1).optional(),
+    })
+    .optional()
+    .describe('Restrict the returned routes[] to entries matching all given criteria.'),
+  limit: z.number().int().positive().max(2000).optional(),
+  offset: z.number().int().min(0).optional(),
 });
 
 export const TOOL_DEFINITIONS = [
@@ -238,6 +309,36 @@ export const TOOL_DEFINITIONS = [
     inputSchema: ValidateClaimInput,
   },
   {
+    name: 'validate_claims_bulk',
+    description:
+      'Execute up to 100 validate_claim probes server-side with bounded parallelism (default 8). One MCP roundtrip instead of N — collapse a 32-67 probe REST audit matrix from 1-3 s of serial latency to ~500 ms. Each result carries its own ok/status; partial failures don\'t short-circuit the batch. Set parallelism=1 for IP-rate-limited public SaaS, leave default 8 for localhost targets.',
+    inputSchema: ValidateClaimsBulkInput,
+  },
+  {
+    name: 'schema_inventory',
+    description:
+      'Scan a directory for Drizzle ORM table definitions (sqliteTable / pgTable) and return every table with its columns, indexes, foreign keys. Pair with events_inventory to verify the "every event type has a matching table write" invariant exhaustively, with no manual grep.',
+    inputSchema: SchemaInventoryInput,
+  },
+  {
+    name: 'events_inventory',
+    description:
+      'Parse a directory for zod discriminatedUnion event types and return every event variant with its fields. Use to enumerate the event surface before testing the event-replay invariant — guarantees zero-omission coverage even when the union is split across files.',
+    inputSchema: EventsInventoryInput,
+  },
+  {
+    name: 'mcp_tools_inventory',
+    description:
+      'Parse a packages/mcp/src/tools.ts (or equivalent) and return every entry of TOOL_DEFINITIONS with name + description + input schema reference. Use to validate that every published MCP tool has a runtime handler (no documented-but-unwired tools) and that the allowedTools list of an SDK orchestrator matches the served set.',
+    inputSchema: McpToolsInventoryInput,
+  },
+  {
+    name: 'react_hooks_inventory',
+    description:
+      'Recursively scan a React app directory for exported hooks (export function/const useXxx). Use as the cartography step for UI auditors so they know exactly how many hooks exist and can target each one with at least one render-test.',
+    inputSchema: ReactHooksInventoryInput,
+  },
+  {
     name: 'api_inventory',
     description:
       'Scan a codebase directory and return every declared HTTP route (method, path, source file, line, permission decorator if any). Supports flask, fastapi, express, fastify. Use to build an exhaustive test matrix with zero route omissions. Pass `selfCheck: { baseUrl }` to probe a handful of GET routes against the live backend and detect parsing bugs (suspicious 3xx / 404 / 5xx ratios) BEFORE you build a test matrix on a broken inventory.',
@@ -246,7 +347,7 @@ export const TOOL_DEFINITIONS = [
   {
     name: 'read_methodology',
     description:
-      '[QA METHODOLOGY ENTRY POINT — call this FIRST before launching any campaign] Returns the unified QA methodology (process/10-methodologie-unifiee.md). Pass `section` to fetch only one part (overview, principles, phase-0..9, etc.) — useful to avoid loading the whole 3000-line doc at once. Defaults to `overview` which gives the 9-phase pipeline + the 8 non-negotiable principles. Pair with start_qa_campaign to begin a tracked run.',
+      '[QA METHODOLOGY ENTRY POINT — call this FIRST before launching any campaign] Returns the unified QA methodology (process/10-methodologie-unifiee.md). Pass `section` to fetch only one part (overview, principles, phase-0..9, etc.) — useful to avoid loading the whole 3000-line doc at once. Defaults to `overview` which gives the 9-phase pipeline + the 9 non-negotiable principles. Pair with start_qa_campaign to begin a tracked run.',
     inputSchema: ReadMethodologyInput,
   },
   {

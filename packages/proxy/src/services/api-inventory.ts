@@ -64,6 +64,15 @@ const PY_EXT = new Set(['.py']);
 const JS_EXT = new Set(['.js', '.ts', '.mjs', '.cjs', '.tsx']);
 const SKIP_DIRS = new Set(['node_modules', '.git', '__pycache__', '.venv', 'venv', 'dist', 'build', '.next', 'migrations']);
 
+// Re-export so cousin scanners (schema/events/mcp-tools/react-hooks) reuse
+// the same walker + skip-list rules without duplicating the heuristic.
+export const INVENTORY_JS_EXT = JS_EXT;
+export const INVENTORY_PY_EXT = PY_EXT;
+export const INVENTORY_SKIP_DIRS = SKIP_DIRS;
+export function inventoryWalk(root: string, exts: Set<string>, out: string[]): void {
+  walk(root, exts, out);
+}
+
 function walk(root: string, exts: Set<string>, out: string[]) {
   let entries;
   try {

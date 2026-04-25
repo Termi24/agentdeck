@@ -4,6 +4,10 @@ import { isAbsolute, resolve } from 'node:path';
 import { z } from 'zod';
 import { validateClaim } from '../services/validate-claim.js';
 import { inventoryRoutes, runInventorySelfCheck } from '../services/api-inventory.js';
+import { inventorySchema } from '../services/inventory-schema.js';
+import { inventoryEvents } from '../services/inventory-events.js';
+import { inventoryMcpTools } from '../services/inventory-mcp-tools.js';
+import { inventoryReactHooks } from '../services/inventory-react-hooks.js';
 
 const ValidateBody = z.object({
   method: z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']),
@@ -64,6 +68,47 @@ export const registerTestToolsRoutes: FastifyPluginAsync = async (app) => {
     } catch (err) {
       return reply.internalServerError(err instanceof Error ? err.message : String(err));
     }
+  });
+
+  // Bulk validate-claims — execute up to 100 claims with bounded
+  // server-side parallelism. One MCP roundtrip instead of N. Crucial for
+  // audit matrices (32-67 probes per round, 9 sub-agents per campaign).
+  // Default parallelism = 8, capped at 20 to avoid hammering rate-limited
+  // SaaS backends. Each result carries its own ok/status — partial
+  // failures don't short-circuit the batch.
+  const BulkValidateBody = z.object({
+    claims: z.array(ValidateBody).min(1).max(100),
+    parallelism: z.number().int().min(1).max(20).default(8),
+  });
+
+  app.post('/sessions/:id/validate-claims/bulk', async (request, reply) => {
+    const parsed = BulkValidateBody.safeParse(request.body);
+    if (!parsed.success) return reply.badRequest(parsed.error.message);
+    const { claims, parallelism } = parsed.data;
+    const results: Array<unknown> = new Array(claims.length);
+    let cursor = 0;
+    const startedAt = Date.now();
+    async function worker(): Promise<void> {
+      for (;;) {
+        const idx = cursor++;
+        if (idx >= claims.length) return;
+        try {
+          results[idx] = await validateClaim(claims[idx]!);
+        } catch (err) {
+          results[idx] = {
+            ok: false,
+            error: err instanceof Error ? err.message : String(err),
+          };
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(parallelism, claims.length) }, worker));
+    return {
+      results,
+      total: claims.length,
+      passed: results.filter((r) => (r as { ok?: boolean }).ok === true).length,
+      durationMs: Date.now() - startedAt,
+    };
   });
 
   app.post('/sessions/:id/api-inventory', async (request, reply) => {
@@ -147,6 +192,68 @@ export const registerTestToolsRoutes: FastifyPluginAsync = async (app) => {
           ? { paging: { offset, limit: limit ?? null, returned: paged.length, totalAfterFilter } }
           : {}),
       };
+    } catch (err) {
+      return reply.internalServerError(err instanceof Error ? err.message : String(err));
+    }
+  });
+
+  // Cousin scanners to api_inventory — same UX, broader cartography:
+  // schema (Drizzle tables), events (zod discriminated union),
+  // mcp-tools (TOOL_DEFINITIONS array), react-hooks (use* exports).
+  // Each accepts {rootPath} and returns a structured inventory.
+  const SchemaInvBody = z.object({ rootPath: z.string().min(1) });
+
+  app.post('/sessions/:id/schema-inventory', async (request, reply) => {
+    const parsed = SchemaInvBody.safeParse(request.body);
+    if (!parsed.success) return reply.badRequest(parsed.error.message);
+    const root = isAbsolute(parsed.data.rootPath) ? parsed.data.rootPath : resolve(parsed.data.rootPath);
+    if (!existsSync(root) || !statSync(root).isDirectory()) {
+      return reply.notFound(`rootPath does not exist or is not a directory: ${parsed.data.rootPath}`);
+    }
+    try {
+      return inventorySchema(root);
+    } catch (err) {
+      return reply.internalServerError(err instanceof Error ? err.message : String(err));
+    }
+  });
+
+  app.post('/sessions/:id/events-inventory', async (request, reply) => {
+    const parsed = SchemaInvBody.safeParse(request.body);
+    if (!parsed.success) return reply.badRequest(parsed.error.message);
+    const root = isAbsolute(parsed.data.rootPath) ? parsed.data.rootPath : resolve(parsed.data.rootPath);
+    if (!existsSync(root) || !statSync(root).isDirectory()) {
+      return reply.notFound(`rootPath does not exist or is not a directory: ${parsed.data.rootPath}`);
+    }
+    try {
+      return inventoryEvents(root);
+    } catch (err) {
+      return reply.internalServerError(err instanceof Error ? err.message : String(err));
+    }
+  });
+
+  app.post('/sessions/:id/mcp-tools-inventory', async (request, reply) => {
+    const parsed = SchemaInvBody.safeParse(request.body);
+    if (!parsed.success) return reply.badRequest(parsed.error.message);
+    const target = isAbsolute(parsed.data.rootPath) ? parsed.data.rootPath : resolve(parsed.data.rootPath);
+    if (!existsSync(target)) {
+      return reply.notFound(`path does not exist: ${parsed.data.rootPath}`);
+    }
+    try {
+      return inventoryMcpTools(target);
+    } catch (err) {
+      return reply.internalServerError(err instanceof Error ? err.message : String(err));
+    }
+  });
+
+  app.post('/sessions/:id/react-hooks-inventory', async (request, reply) => {
+    const parsed = SchemaInvBody.safeParse(request.body);
+    if (!parsed.success) return reply.badRequest(parsed.error.message);
+    const root = isAbsolute(parsed.data.rootPath) ? parsed.data.rootPath : resolve(parsed.data.rootPath);
+    if (!existsSync(root) || !statSync(root).isDirectory()) {
+      return reply.notFound(`rootPath does not exist or is not a directory: ${parsed.data.rootPath}`);
+    }
+    try {
+      return inventoryReactHooks(root);
     } catch (err) {
       return reply.internalServerError(err instanceof Error ? err.message : String(err));
     }

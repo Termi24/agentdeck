@@ -34,7 +34,7 @@ When the user asks to test, audit, QA, or "use agentdeck" on a project:
     step ONLY if the user pre-supplied a name.
 
 1. Call mcp__agentdeck__read_methodology({ section: "overview" }) to load the
-   pipeline and the 8 non-negotiable principles. Then call
+   pipeline and the 9 non-negotiable principles. Then call
    read_methodology({ section: "pre-start" }) to verify the toolchain is ready.
 
 2. Call mcp__agentdeck__start_qa_campaign({ projectName, cliSource, notes })
@@ -231,30 +231,42 @@ async function dispatch(name: ToolName, args: Record<string, unknown>): Promise<
       return `URL: ${r.url}\nTitle: ${r.title}\n---\n${r.text}`;
     }
     case 'browser_click': {
-      await proxy.browserClick(String(args.selector ?? ''));
-      return `Clicked ${args.selector}`;
+      const r = await proxy.browserClick(
+        String(args.selector ?? ''),
+        typeof args.timeoutMs === 'number' ? { timeoutMs: args.timeoutMs } : undefined,
+      );
+      if (r.ok) return `Clicked ${args.selector}`;
+      return `Element not found: ${r.selector} (gave up after ${r.timeoutMs}ms). Increase timeoutMs or check the page state.`;
     }
     case 'browser_type': {
-      await proxy.browserType(
+      const r = await proxy.browserType(
         String(args.selector ?? ''),
         String(args.text ?? ''),
         typeof args.pressEnter === 'boolean' ? args.pressEnter : undefined,
+        typeof args.timeoutMs === 'number' ? { timeoutMs: args.timeoutMs } : undefined,
       );
-      return `Typed into ${args.selector}`;
+      if (r.ok) return `Typed into ${args.selector}`;
+      return `Element not found: ${r.selector} (gave up after ${r.timeoutMs}ms). Increase timeoutMs or check the page state.`;
     }
     case 'browser_fill_form': {
       const fields = (args.fields as Array<{ selector: string; value: string }>) ?? [];
-      const r = await proxy.browserFillForm(fields);
-      return `Filled ${r.filled} fields`;
+      const r = await proxy.browserFillForm(
+        fields,
+        typeof args.timeoutMs === 'number' ? { timeoutMs: args.timeoutMs } : undefined,
+      );
+      if (r.ok) return `Filled ${r.filled} fields`;
+      return `Filled ${r.filled}/${r.total} fields, then could not find: ${r.selector} (gave up after ${r.timeoutMs}ms).`;
     }
     case 'browser_wait_for': {
-      await proxy.browserWaitFor({
+      const r = await proxy.browserWaitFor({
         text: typeof args.text === 'string' ? args.text : undefined,
         textGone: typeof args.textGone === 'string' ? args.textGone : undefined,
         selector: typeof args.selector === 'string' ? args.selector : undefined,
         timeoutMs: typeof args.timeoutMs === 'number' ? args.timeoutMs : undefined,
       });
-      return 'Wait condition satisfied';
+      if (r.satisfied) return 'Wait condition satisfied.';
+      const target = JSON.stringify(r.waitedFor);
+      return `Wait NOT satisfied (${r.reason} after ${r.timeoutMs}ms): waiting for ${target}.`;
     }
     case 'browser_press_key': {
       await proxy.browserPressKey(String(args.key ?? ''));
@@ -290,22 +302,123 @@ async function dispatch(name: ToolName, args: Record<string, unknown>): Promise<
         expectJsonContains: (args.expectJsonContains as Record<string, unknown> | undefined) ?? undefined,
         expectBodyIncludes: typeof args.expectBodyIncludes === 'string' ? args.expectBodyIncludes : undefined,
         timeoutMs: typeof args.timeoutMs === 'number' ? args.timeoutMs : undefined,
+        followRedirects: typeof args.followRedirects === 'boolean' ? args.followRedirects : undefined,
+        maxRedirects: typeof args.maxRedirects === 'number' ? args.maxRedirects : undefined,
       });
       const lines = [
         `verdict: ${r.ok ? 'HOLDS' : 'REJECTED'}`,
         `status: ${r.status} (${r.durationMs}ms, ${r.contentType ?? 'no content-type'})`,
       ];
+      if (r.redirectChain.length > 0) {
+        lines.push(
+          `redirects: ${r.redirectChain
+            .map((h) => `${h.status} → ${h.to}${h.authorizationDropped ? ' [Authorization dropped]' : ''}`)
+            .join('; ')}`,
+        );
+        if (r.finalUrl !== String(args.url ?? '')) lines.push(`final URL: ${r.finalUrl}`);
+      }
+      if (r.retries > 0) lines.push(`retries: ${r.retries} (slept ${r.backoffMs}ms total)`);
       if (r.mismatches.length) lines.push('mismatches:\n- ' + r.mismatches.join('\n- '));
       if (r.sampleBody) lines.push(`sample body (${r.sampleBody.length} chars):\n${r.sampleBody}`);
+      return lines.join('\n');
+    }
+    case 'validate_claims_bulk': {
+      const r = await proxy.validateClaimsBulk({
+        claims: args.claims as Parameters<typeof proxy.validateClaimsBulk>[0]['claims'],
+        parallelism: typeof args.parallelism === 'number' ? args.parallelism : undefined,
+      });
+      const head = `verdict: ${r.passed}/${r.total} claims hold (${r.durationMs}ms total)`;
+      const failures = r.results
+        .map((c, i) => ({ ...c, idx: i }))
+        .filter((c) => !c.ok)
+        .slice(0, 20);
+      if (failures.length === 0) return head;
+      const detail = failures
+        .map((f) => {
+          const claim = (args.claims as Array<{ method: string; url: string }>)[f.idx];
+          const where = claim ? `${claim.method} ${claim.url}` : `claim[${f.idx}]`;
+          if (f.error) return `  ✗ ${where}  error: ${f.error}`;
+          const mm = (f.mismatches ?? []).join('; ') || `status=${f.status}`;
+          return `  ✗ ${where}  ${mm}`;
+        })
+        .join('\n');
+      return `${head}\n\nFailures (showing up to 20):\n${detail}`;
+    }
+    case 'schema_inventory': {
+      const r = await proxy.schemaInventory({ rootPath: String(args.rootPath ?? '') });
+      const lines = [
+        `schema: scanned ${r.scannedFiles} file(s), ${r.tables.length} table(s) total`,
+        '',
+        ...r.tables.map(
+          (t) =>
+            `  ${t.name.padEnd(30)} cols=${String(t.columns.length).padStart(2)} idx=${String(t.indexes.length).padStart(2)} fk=${String(t.foreignKeys.length).padStart(2)}  [${t.file}:${t.line}]`,
+        ),
+      ];
+      return lines.join('\n');
+    }
+    case 'events_inventory': {
+      const r = await proxy.eventsInventory({ rootPath: String(args.rootPath ?? '') });
+      const lines = [
+        `events: scanned ${r.scannedFiles} file(s), ${r.events.length} event type(s)${r.discriminator ? ` (discriminator=${r.discriminator})` : ''}`,
+        '',
+        ...r.events.map((e) => `  ${e.type.padEnd(40)} fields=${e.fields.length}  [${e.file}:${e.line}]`),
+      ];
+      return lines.join('\n');
+    }
+    case 'mcp_tools_inventory': {
+      const r = await proxy.mcpToolsInventory({ rootPath: String(args.rootPath ?? '') });
+      const lines = [
+        `mcp tools: ${r.tools.length} entries  [${r.file}]`,
+        '',
+        ...r.tools.map((t) => `  ${t.name.padEnd(38)} schema=${t.inputSchema}`),
+      ];
+      return lines.join('\n');
+    }
+    case 'react_hooks_inventory': {
+      const r = await proxy.reactHooksInventory({ rootPath: String(args.rootPath ?? '') });
+      const lines = [
+        `react hooks: scanned ${r.scannedFiles} file(s), ${r.hooks.length} hook(s)`,
+        '',
+        ...r.hooks.map((h) => `  ${h.name.padEnd(38)} kind=${h.kind}  [${h.file}:${h.line}]`),
+      ];
       return lines.join('\n');
     }
     case 'api_inventory': {
       const r = await proxy.apiInventory({
         framework: args.framework as 'flask' | 'express' | 'fastapi' | 'fastify',
         rootPath: String(args.rootPath ?? ''),
+        summary: typeof args.summary === 'boolean' ? args.summary : undefined,
+        filter: (args.filter as { method?: string; pathPrefix?: string; blueprint?: string } | undefined) ?? undefined,
+        limit: typeof args.limit === 'number' ? args.limit : undefined,
+        offset: typeof args.offset === 'number' ? args.offset : undefined,
       });
-      const head = `framework=${r.framework} files=${r.scannedFiles} routes=${r.routes.length}`;
-      const rows = r.routes
+
+      // Summary mode: compact aggregate, no per-route list. Roughly 50×
+      // smaller than the full payload — cheap first call on big codebases.
+      if (r.summary && !r.routes) {
+        const lines = [
+          `framework=${r.framework} files=${r.scannedFiles} routes=${r.summary.total}`,
+          `by method: ${Object.entries(r.summary.byMethod).map(([m, n]) => `${m}=${n}`).join(' ')}`,
+          '',
+          'by blueprint:',
+          ...Object.entries(r.summary.byBlueprint)
+            .sort(([, a], [, b]) => Object.values(b).reduce((s, n) => s + n, 0) - Object.values(a).reduce((s, n) => s + n, 0))
+            .map(([bp, methods]) => {
+              const total = Object.values(methods).reduce((s, n) => s + n, 0);
+              const detail = Object.entries(methods).map(([m, n]) => `${m}=${n}`).join(' ');
+              return `  ${bp.padEnd(30)} total=${String(total).padStart(4)}  ${detail}`;
+            }),
+          '',
+          `Call again with filter={method,pathPrefix,blueprint} or summary:false + limit/offset for the per-route list.`,
+        ];
+        return lines.join('\n');
+      }
+
+      const routes = r.routes ?? [];
+      const head = r.paging
+        ? `framework=${r.framework} files=${r.scannedFiles} routes=${r.summary?.total ?? routes.length} (showing ${r.paging.returned} of ${r.paging.totalAfterFilter} after filter, offset=${r.paging.offset})`
+        : `framework=${r.framework} files=${r.scannedFiles} routes=${routes.length}`;
+      const rows = routes
         .map(
           (rt) =>
             `${rt.method.padEnd(6)} ${rt.path}  [${rt.file}:${rt.line}]${rt.permissionRequired ? ` perm=${rt.permissionRequired}` : ''}`,
