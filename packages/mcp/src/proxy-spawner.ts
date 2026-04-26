@@ -81,6 +81,27 @@ export async function waitForHealth(port: number, timeoutMs = 60_000): Promise<b
   return false;
 }
 
+async function webReady(port: number, timeoutMs = 1500): Promise<boolean> {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeoutMs);
+    const res = await fetch(`http://127.0.0.1:${port}/`, { signal: ctrl.signal });
+    clearTimeout(t);
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function waitForWebReady(port: number, timeoutMs = 120_000): Promise<boolean> {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    if (await webReady(port, 1500)) return true;
+    await wait(1000);
+  }
+  return false;
+}
+
 function isPortFree(port: number, host = '127.0.0.1'): Promise<boolean> {
   return new Promise((resolvePromise) => {
     const srv = createServer();
@@ -216,6 +237,7 @@ export function spawnDetachedLauncher(opts: { repoRoot: string; proxyPort: numbe
     },
     detached: true,
     stdio: 'ignore',
+    windowsHide: true,
   });
   child.unref();
   if (!child.pid) throw new Error('failed to spawn launcher (no pid)');
@@ -255,17 +277,24 @@ export async function ensureProxyReachable(opts: { explicitProxyUrl?: string }):
 
   const existing = readProxyInfo();
   if (existing && isPidAlive(existing.pid) && (await healthCheck(existing.proxyPort))) {
+    // Proxy is up; the web may still be compiling on a fresh launcher. Block
+    // until it answers so the dashboard URL we hand out is immediately usable.
+    if (!(await webReady(existing.webPort))) {
+      await waitForWebReady(existing.webPort, 60_000);
+    }
     return { proxyPort: existing.proxyPort, webPort: existing.webPort, freshSpawn: false };
   }
   if (existing) deleteProxyInfo();
 
   const lockFd = tryAcquireSpawnLock();
   if (lockFd === null) {
-    // Another MCP is spawning. Wait for proxy.json to appear and become healthy.
+    // Another MCP is spawning. Wait for proxy.json to appear and for both
+    // proxy /health and the web root to be reachable before returning, so any
+    // dashboard URL we surface is immediately clickable.
     const started = Date.now();
-    while (Date.now() - started < 60_000) {
+    while (Date.now() - started < 120_000) {
       const info = readProxyInfo();
-      if (info && (await healthCheck(info.proxyPort))) {
+      if (info && (await healthCheck(info.proxyPort)) && (await webReady(info.webPort))) {
         return { proxyPort: info.proxyPort, webPort: info.webPort, freshSpawn: false };
       }
       await wait(500);
@@ -288,6 +317,13 @@ export async function ensureProxyReachable(opts: { explicitProxyUrl?: string }):
     const ok = await waitForHealth(proxyPort, 90_000);
     if (!ok) {
       throw new Error(`proxy did not become healthy on :${proxyPort} within 90s`);
+    }
+    // Next.js dev compiles lazily, so /health on the proxy is not enough — the
+    // dashboard URL we are about to announce is on the web port. Wait for an
+    // actual 200 from the Next root before letting the banner go out.
+    const webOk = await waitForWebReady(webPort, 120_000);
+    if (!webOk) {
+      throw new Error(`web did not become ready on :${webPort} within 120s`);
     }
     return { proxyPort, webPort, freshSpawn: true };
   } finally {

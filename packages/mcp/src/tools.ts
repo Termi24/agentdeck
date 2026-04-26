@@ -295,6 +295,26 @@ export const ApiInventoryInput = z.object({
   offset: z.number().int().min(0).optional(),
 });
 
+export const TaskPlanInput = z.object({
+  agentId: z.string().min(1).describe('UUID of the agent that owns this task. Use ensureReady().agentId for self, or a sub-agent id for delegation.'),
+  title: z.string().min(1).max(200),
+  description: z.string().max(2000).optional(),
+  plannedStart: z.iso.datetime().describe('ISO 8601 UTC datetime when the agent intends to start the task.'),
+  plannedEnd: z.iso.datetime().describe('ISO 8601 UTC datetime when the agent intends to finish the task.'),
+  dependencies: z.array(z.string()).optional().describe('taskIds this task depends on; the dashboard renders dependency arrows.'),
+});
+
+export const TaskUpdateProgressInput = z.object({
+  taskId: z.string().min(1),
+  progressPct: z.number().int().min(0).max(100),
+  status: z.enum(['planned', 'in_progress', 'blocked', 'completed', 'cancelled']).optional(),
+});
+
+export const TaskCompleteInput = z.object({
+  taskId: z.string().min(1),
+  status: z.enum(['completed', 'cancelled']).default('completed'),
+});
+
 export const TOOL_DEFINITIONS = [
   { name: 'list_procedures', description: 'List all test procedures available.', inputSchema: ListProceduresInput },
   { name: 'run_test_procedure', description: 'Fetch a procedure runbook so you can execute it.', inputSchema: RunTestProcedureInput },
@@ -423,6 +443,24 @@ export const TOOL_DEFINITIONS = [
     description:
       'Mark a sub-agent (previously created via spawn_agent) as completed/failed/cancelled. The AgentTree status badge flips off the live "running" state and tokensIn/tokensOut totals roll up to the session KPI strip.',
     inputSchema: StopAgentInput,
+  },
+  {
+    name: 'task_plan',
+    description:
+      'Announce a planned task with a start/end window. Powers the dashboard Gantt + Calendar + progress views — call this at the start of a multi-step run so the human sees, in real time, who plans to do what and when. Returns a taskId to feed task_update_progress / task_complete.',
+    inputSchema: TaskPlanInput,
+  },
+  {
+    name: 'task_update_progress',
+    description:
+      'Report current progress on a previously planned task (0-100%). Optionally flip the status (planned → in_progress → blocked / completed / cancelled). The first non-zero progress automatically transitions a planned task to in_progress and stamps actualStart.',
+    inputSchema: TaskUpdateProgressInput,
+  },
+  {
+    name: 'task_complete',
+    description:
+      'Mark a task as completed (default) or cancelled, stamping actualEnd. Equivalent to task_update_progress({progressPct:100,status:"completed"}) but is the explicit terminal call so the dashboard can grey out the bar.',
+    inputSchema: TaskCompleteInput,
   },
 ] as const;
 

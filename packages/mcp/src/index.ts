@@ -195,13 +195,24 @@ async function dispatch(name: ToolName, args: Record<string, unknown>): Promise<
       const prompt = typeof args.prompt === 'string' ? args.prompt : null;
       if (prompt) await proxy.postChannel(`[await_user_input] ${prompt}`);
       const ctx = proxy.currentAgentContext();
+      const sessionUrl = proxy.sessionUrl();
+      // Surface the wait on stderr so CLI hosts that pipe MCP stderr show the
+      // user a hint without needing the dashboard. Best-effort, ignored by
+      // hosts that don't surface MCP stderr.
+      try {
+        process.stderr.write(`[agentdeck] ${ctx?.agentName ?? 'agent'} is awaiting your input — open ${sessionUrl}\n`);
+      } catch {}
       const result = await proxy.awaitUserInput(timeoutMs, {
         agentId: ctx?.agentId ?? null,
         agentName: ctx?.agentName ?? null,
         prompt,
       });
-      if (!result) return `(no user input within ${timeoutMs}ms)`;
-      return result.content;
+      if (!result) {
+        return `(no user input within ${timeoutMs}ms — tell the human user explicitly that you were waiting and timed out, then ask them how to proceed)`;
+      }
+      // The model reads this string. Tell it to relay clearly so the human in
+      // the CLI knows the agent is unblocked even if they ignored the toast.
+      return `[user replied via dashboard]: ${result.content}`;
     }
     case 'diff_exec': {
       const result = await proxy.diffExec(String(args.runIdA ?? ''), String(args.runIdB ?? ''));
@@ -488,6 +499,32 @@ async function dispatch(name: ToolName, args: Record<string, unknown>): Promise<
         tokensOut: typeof args.tokensOut === 'number' ? args.tokensOut : undefined,
       });
       return `Sub-agent ${r.agentId} marked ${r.status}.`;
+    }
+    case 'task_plan': {
+      const r = await proxy.taskPlan({
+        agentId: String(args.agentId ?? ''),
+        title: String(args.title ?? ''),
+        description: typeof args.description === 'string' ? args.description : undefined,
+        plannedStart: String(args.plannedStart ?? ''),
+        plannedEnd: String(args.plannedEnd ?? ''),
+        dependencies: Array.isArray(args.dependencies) ? (args.dependencies as string[]) : undefined,
+      });
+      return `Task ${r.taskId} planned.`;
+    }
+    case 'task_update_progress': {
+      await proxy.taskUpdateProgress({
+        taskId: String(args.taskId ?? ''),
+        progressPct: typeof args.progressPct === 'number' ? args.progressPct : 0,
+        status: args.status as 'planned' | 'in_progress' | 'blocked' | 'completed' | 'cancelled' | undefined,
+      });
+      return `Task ${args.taskId} progress=${args.progressPct}%${args.status ? ` status=${args.status}` : ''}.`;
+    }
+    case 'task_complete': {
+      await proxy.taskComplete({
+        taskId: String(args.taskId ?? ''),
+        status: (args.status as 'completed' | 'cancelled' | undefined) ?? 'completed',
+      });
+      return `Task ${args.taskId} marked ${args.status ?? 'completed'}.`;
     }
     default: {
       const _exhaustive: never = name;

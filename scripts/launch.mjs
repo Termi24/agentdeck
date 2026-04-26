@@ -50,7 +50,13 @@ function waitForTcp(host, port, label, timeoutMs = 120_000) {
 
 function openBrowser(url) {
   if (isWindows) {
-    spawn('cmd', ['/c', 'start', '', url], { detached: true, stdio: 'ignore' }).unref();
+    // `cmd /c start` flashes a console window. Use rundll32 url.dll to open
+    // the default browser with no intermediate console.
+    spawn('rundll32', ['url.dll,FileProtocolHandler', url], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+    }).unref();
   } else if (process.platform === 'darwin') {
     spawn('open', [url], { detached: true, stdio: 'ignore' }).unref();
   } else {
@@ -89,13 +95,13 @@ async function main() {
     !existsSync(resolve(repoRoot, 'node_modules')) || !existsSync(resolve(repoRoot, 'packages/proxy/node_modules'));
   if (needInstall) {
     log('launcher', 'node_modules missing — installing (first run can take a few minutes)');
-    const install = spawn(pnpmBin, ['install'], { cwd: repoRoot, shell: isWindows, stdio: 'inherit' });
+    const install = spawn(pnpmBin, ['install'], { cwd: repoRoot, shell: isWindows, stdio: 'inherit', windowsHide: true });
     const [code] = await once(install, 'exit');
     if (code !== 0) throw new Error(`pnpm install failed with exit code ${code}`);
   }
 
   log('launcher', 'applying DB migrations');
-  const migrate = spawn(pnpmBin, ['db:migrate'], { cwd: repoRoot, shell: isWindows, stdio: 'inherit' });
+  const migrate = spawn(pnpmBin, ['db:migrate'], { cwd: repoRoot, shell: isWindows, stdio: 'inherit', windowsHide: true });
   const [migrateCode] = await once(migrate, 'exit');
   if (migrateCode !== 0) throw new Error(`pnpm db:migrate failed with exit code ${migrateCode}`);
 
@@ -110,8 +116,13 @@ async function main() {
   log('launcher', `starting proxy on :${proxyPort}`);
   const proxy = spawn(process.execPath, [tsxCli, 'watch', 'src/index.ts'], {
     cwd: proxyDir,
-    env: { ...process.env, PROXY_PORT: String(proxyPort) },
+    env: {
+      ...process.env,
+      PROXY_PORT: String(proxyPort),
+      AGENTDECK_DASHBOARD_URL: `http://127.0.0.1:${webPort}`,
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true,
   });
   pipeLabeled(proxy, 'proxy');
 
@@ -120,6 +131,7 @@ async function main() {
     cwd: webDir,
     env: { ...process.env, NEXT_PUBLIC_PROXY_URL: `http://127.0.0.1:${proxyPort}` },
     stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true,
   });
   pipeLabeled(web, 'web');
 

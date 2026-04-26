@@ -1,5 +1,5 @@
 'use client';
-import { FileText, FlaskConical, MessageCircle, Send, Users, type LucideIcon } from 'lucide-react';
+import { CalendarRange, FileText, FlaskConical, MessageCircle, Send, Users, type LucideIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,6 +16,7 @@ import {
 } from '@/lib/api';
 import { usePollingInterval } from '@/lib/use-polling';
 import { AgentDetailSheet } from './agent-detail-sheet';
+import { PlanningView } from './planning-view';
 import { ACTIVE_STATUSES, LiveDot, relativeTime, statusClasses } from './shared';
 
 interface Doc {
@@ -93,12 +94,21 @@ export function SessionTabs({ sessionId }: { sessionId: string }) {
   const [openTest, setOpenTest] = useState<TestResult | null>(null);
   const [openAgent, setOpenAgent] = useState<SessionAgent | null>(null);
 
+  const planningCount = useMemo(() => {
+    let n = 0;
+    for (const e of events as ReadonlyArray<AgentDeckEvent>) {
+      if (e.type === 'agent.task.planned') n++;
+    }
+    return n;
+  }, [events]);
+
   const counts = {
     docs: docs.length,
     tests: tests.length,
     channel: messages.length,
     agents: agents.length,
     dms: dms.length,
+    planning: planningCount,
   };
 
   return (
@@ -109,6 +119,7 @@ export function SessionTabs({ sessionId }: { sessionId: string }) {
             <CardTitle className="sr-only">Session details</CardTitle>
             <TabsList className="h-8 w-full justify-start bg-transparent p-0">
               <TabTrigger value="agents" icon={Users} label="Agents & context" count={counts.agents} />
+              <TabTrigger value="planning" icon={CalendarRange} label="Planning" count={counts.planning} />
               <TabTrigger value="dms" icon={Send} label="DMs" count={counts.dms} />
               <TabTrigger value="docs" icon={FileText} label="Docs" count={counts.docs} />
               <TabTrigger value="tests" icon={FlaskConical} label="Tests" count={counts.tests} />
@@ -129,6 +140,10 @@ export function SessionTabs({ sessionId }: { sessionId: string }) {
                   ))}
                 </ul>
               )}
+            </TabsContent>
+
+            <TabsContent value="planning" className="m-0">
+              <PlanningView sessionId={sessionId} />
             </TabsContent>
 
             <TabsContent value="dms" className="m-0">

@@ -45,6 +45,8 @@ const TOOL_NAMES = [
   // Sub-agent registration shims (v0.0.5). Skills like /agentdeck-review
   // call these to surface fan-out work in the AgentTree.
   'spawn_agent', 'stop_agent',
+  // Agent task planning (v0.0.6) — Gantt / Calendar / progress views.
+  'task_plan', 'task_update_progress', 'task_complete',
 ];
 
 function log(msg) {

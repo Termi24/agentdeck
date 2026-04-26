@@ -326,6 +326,47 @@ export const campaignRetrospectives = sqliteTable('campaign_retrospectives', {
   submittedAt: text('submitted_at').notNull().default(sql`(current_timestamp)`),
 });
 
+/**
+ * Agent task planning. Personas / sub-agents announce what they intend to do
+ * via task_plan, then progress through task_update_progress / task_complete.
+ * Powers the dashboard's Gantt + Calendar + progress views.
+ *
+ * `plannedStart` / `plannedEnd` are the schedule. `actualStart` / `actualEnd`
+ * are filled when the agent flips status. `progressPct` is 0-100 — agents
+ * may report it linearly (50% means halfway) or as a coarse step count.
+ */
+export const agentTasks = sqliteTable(
+  'agent_tasks',
+  {
+    id: text('id').primaryKey(),
+    sessionId: text('session_id')
+      .notNull()
+      .references(() => sessions.id, { onDelete: 'cascade' }),
+    agentId: text('agent_id')
+      .notNull()
+      .references(() => agents.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    description: text('description'),
+    status: text('status', { enum: ['planned', 'in_progress', 'blocked', 'completed', 'cancelled'] })
+      .notNull()
+      .default('planned'),
+    progressPct: integer('progress_pct').notNull().default(0),
+    plannedStart: text('planned_start').notNull(),
+    plannedEnd: text('planned_end').notNull(),
+    actualStart: text('actual_start'),
+    actualEnd: text('actual_end'),
+    /** JSON-encoded array of task ids this depends on. */
+    dependenciesJson: text('dependencies_json'),
+    createdAt: text('created_at').notNull().default(sql`(current_timestamp)`),
+    updatedAt: text('updated_at').notNull().default(sql`(current_timestamp)`),
+  },
+  (table) => ({
+    sessionIdx: index('agent_tasks_session_idx').on(table.sessionId),
+    agentIdx: index('agent_tasks_agent_idx').on(table.agentId),
+    statusIdx: index('agent_tasks_status_idx').on(table.status),
+  }),
+);
+
 export type Session = typeof sessions.$inferSelect;
 export type NewSession = typeof sessions.$inferInsert;
 export type Agent = typeof agents.$inferSelect;
@@ -350,3 +391,5 @@ export type CampaignMetric = typeof campaignMetrics.$inferSelect;
 export type NewCampaignMetric = typeof campaignMetrics.$inferInsert;
 export type CampaignRetrospective = typeof campaignRetrospectives.$inferSelect;
 export type NewCampaignRetrospective = typeof campaignRetrospectives.$inferInsert;
+export type AgentTask = typeof agentTasks.$inferSelect;
+export type NewAgentTask = typeof agentTasks.$inferInsert;

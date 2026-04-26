@@ -209,6 +209,47 @@ export const MemoryUpdated = z.object({
   at: z.iso.datetime(),
 });
 
+// Agent planning lifecycle. Drives the dashboard Gantt + calendar + % views.
+export const AgentTaskPlanned = z.object({
+  type: z.literal('agent.task.planned'),
+  sessionId: z.uuid(),
+  agentId: z.string(),
+  taskId: z.uuid(),
+  title: z.string(),
+  description: z.string().nullable().optional(),
+  plannedStart: z.iso.datetime(),
+  plannedEnd: z.iso.datetime(),
+  dependencies: z.array(z.string()).optional(),
+  at: z.iso.datetime(),
+});
+
+export const AgentTaskStarted = z.object({
+  type: z.literal('agent.task.started'),
+  sessionId: z.uuid(),
+  agentId: z.string(),
+  taskId: z.uuid(),
+  at: z.iso.datetime(),
+});
+
+export const AgentTaskProgressed = z.object({
+  type: z.literal('agent.task.progressed'),
+  sessionId: z.uuid(),
+  agentId: z.string(),
+  taskId: z.uuid(),
+  progressPct: z.number().int().min(0).max(100),
+  status: z.enum(['planned', 'in_progress', 'blocked', 'completed', 'cancelled']).optional(),
+  at: z.iso.datetime(),
+});
+
+export const AgentTaskCompleted = z.object({
+  type: z.literal('agent.task.completed'),
+  sessionId: z.uuid(),
+  agentId: z.string(),
+  taskId: z.uuid(),
+  status: z.enum(['completed', 'cancelled']),
+  at: z.iso.datetime(),
+});
+
 export const AgentDeckEvent = z.discriminatedUnion('type', [
   SessionStarted,
   SessionEnded,
@@ -231,5 +272,9 @@ export const AgentDeckEvent = z.discriminatedUnion('type', [
   BrowserScreenshotTaken,
   AgentCancelRequested,
   MemoryUpdated,
+  AgentTaskPlanned,
+  AgentTaskStarted,
+  AgentTaskProgressed,
+  AgentTaskCompleted,
 ]);
 export type AgentDeckEvent = z.infer<typeof AgentDeckEvent>;

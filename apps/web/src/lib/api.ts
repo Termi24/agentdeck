@@ -131,6 +131,68 @@ export async function startSession(input: StartSessionInput): Promise<StartSessi
   return res.json();
 }
 
+export type AgentTaskStatus = 'planned' | 'in_progress' | 'blocked' | 'completed' | 'cancelled';
+
+export interface AgentTaskItem {
+  id: string;
+  sessionId: string;
+  agentId: string;
+  agentName: string;
+  title: string;
+  description: string | null;
+  status: AgentTaskStatus;
+  progressPct: number;
+  plannedStart: string;
+  plannedEnd: string;
+  actualStart: string | null;
+  actualEnd: string | null;
+  dependencies: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function listAgentTasks(sessionId: string): Promise<AgentTaskItem[]> {
+  const res = await fetch(`${PROXY_URL}/sessions/${sessionId}/agent-tasks`, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`listAgentTasks failed: ${res.status}`);
+  const body = (await res.json()) as { tasks: AgentTaskItem[] };
+  return body.tasks;
+}
+
+export interface ProjectListItem {
+  projectId: string;
+  sessionCount: number;
+  activeSessionCount: number;
+  agentCount: number;
+  runningAgentCount: number;
+  toolCallCount: number;
+  runningToolCallCount: number;
+  testResultCount: number;
+  totalTokensIn: number;
+  totalTokensOut: number;
+  latestStatus: SessionStatus | null;
+  latestSessionTitle: string | null;
+  latestSessionId: string | null;
+  startedAt: string | null;
+  lastActivityAt: string | null;
+  lastChannelMessage: { fromAgentName: string; content: string; at: string } | null;
+}
+
+export async function listProjects(): Promise<ProjectListItem[]> {
+  const res = await fetch(`${PROXY_URL}/projects`, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`listProjects failed: ${res.status}`);
+  const body = (await res.json()) as { projects: ProjectListItem[] };
+  return body.projects;
+}
+
+export async function listProjectSessions(projectId: string): Promise<SessionListItem[]> {
+  const res = await fetch(`${PROXY_URL}/projects/${encodeURIComponent(projectId)}/sessions`, {
+    cache: 'no-store',
+  });
+  if (!res.ok) throw new Error(`listProjectSessions failed: ${res.status}`);
+  const body = (await res.json()) as { sessions: SessionListItem[] };
+  return body.sessions;
+}
+
 export async function listSessions(limit = 200): Promise<SessionListItem[]> {
   const res = await fetch(`${PROXY_URL}/sessions?limit=${limit}`, {
     method: 'GET',

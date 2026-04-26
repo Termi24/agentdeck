@@ -1,5 +1,6 @@
 import {
   agents,
+  agentTasks,
   channelMessages,
   docs,
   events,
@@ -7,10 +8,12 @@ import {
   testResults,
   toolCalls,
   type AgentDeckEvent,
+  type AgentTask,
   type NewAgent,
+  type NewAgentTask,
   type NewSession,
 } from '@agentdeck/shared';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import { getDb } from './db.js';
 
 // SQLite default `current_timestamp` returns "YYYY-MM-DD HH:MM:SS" (no T, no Z).
@@ -118,6 +121,88 @@ export function listSessions(limit = 200): SessionListRow[] {
       lastChannelMessage:
         r.lastMessageContent && r.lastMessageFromName && lastAt
           ? { fromAgentName: r.lastMessageFromName, content: r.lastMessageContent, at: lastAt }
+          : null,
+    };
+  });
+}
+
+export interface ProjectListRow {
+  projectId: string;
+  sessionCount: number;
+  activeSessionCount: number;
+  agentCount: number;
+  runningAgentCount: number;
+  toolCallCount: number;
+  runningToolCallCount: number;
+  testResultCount: number;
+  totalTokensIn: number;
+  totalTokensOut: number;
+  /** Most recent session status — drives the project card status pill. */
+  latestStatus: 'pending' | 'running' | 'waiting_tool' | 'completed' | 'failed' | 'cancelled' | null;
+  /** Most recent session title — surfaced as a sub-title on the card. */
+  latestSessionTitle: string | null;
+  /** Most recent session id — clicking the card jumps to that session if there's only one. */
+  latestSessionId: string | null;
+  startedAt: string | null;
+  lastActivityAt: string | null;
+  lastChannelMessage: { fromAgentName: string; content: string; at: string } | null;
+}
+
+/**
+ * Hub-level aggregate: groups every session row by projectId and rolls up
+ * stats. The hub renders one card per project; the per-project page
+ * (/projects/:id) lists the underlying sessions via the existing
+ * listSessions() output filtered to that projectId.
+ */
+export function listProjects(): ProjectListRow[] {
+  const db = getDb();
+  const rows = db
+    .select({
+      projectId: sessions.projectId,
+      sessionCount: sql<number>`count(*)`,
+      activeSessionCount: sql<number>`sum(case when sessions.status in ('pending','running','waiting_tool') then 1 else 0 end)`,
+      totalTokensIn: sql<number>`coalesce(sum(sessions.total_tokens_in), 0)`,
+      totalTokensOut: sql<number>`coalesce(sum(sessions.total_tokens_out), 0)`,
+      agentCount: sql<number>`(SELECT count(*) FROM agents JOIN sessions s2 ON s2.id = agents.session_id WHERE s2.project_id = sessions.project_id)`,
+      runningAgentCount: sql<number>`(SELECT count(*) FROM agents JOIN sessions s2 ON s2.id = agents.session_id WHERE s2.project_id = sessions.project_id AND agents.status IN ('running','pending','waiting_tool'))`,
+      toolCallCount: sql<number>`(SELECT count(*) FROM tool_calls JOIN sessions s2 ON s2.id = tool_calls.session_id WHERE s2.project_id = sessions.project_id)`,
+      runningToolCallCount: sql<number>`(SELECT count(*) FROM tool_calls JOIN sessions s2 ON s2.id = tool_calls.session_id WHERE s2.project_id = sessions.project_id AND tool_calls.status = 'running')`,
+      testResultCount: sql<number>`(SELECT count(*) FROM test_results JOIN sessions s2 ON s2.id = test_results.session_id WHERE s2.project_id = sessions.project_id)`,
+      startedAt: sql<string | null>`min(sessions.started_at)`,
+      lastActivityAt: sql<string | null>`(SELECT max(events.created_at) FROM events JOIN sessions s2 ON s2.id = events.session_id WHERE s2.project_id = sessions.project_id)`,
+      latestSessionId: sql<string | null>`(SELECT s2.id FROM sessions s2 WHERE s2.project_id = sessions.project_id ORDER BY s2.started_at DESC LIMIT 1)`,
+      latestSessionTitle: sql<string | null>`(SELECT s2.title FROM sessions s2 WHERE s2.project_id = sessions.project_id ORDER BY s2.started_at DESC LIMIT 1)`,
+      latestStatus: sql<string | null>`(SELECT s2.status FROM sessions s2 WHERE s2.project_id = sessions.project_id ORDER BY s2.started_at DESC LIMIT 1)`,
+      lastMessageFromName: sql<string | null>`(SELECT channel_messages.from_agent_name FROM channel_messages JOIN sessions s2 ON s2.id = channel_messages.session_id WHERE s2.project_id = sessions.project_id ORDER BY channel_messages.created_at DESC LIMIT 1)`,
+      lastMessageContent: sql<string | null>`(SELECT channel_messages.content FROM channel_messages JOIN sessions s2 ON s2.id = channel_messages.session_id WHERE s2.project_id = sessions.project_id ORDER BY channel_messages.created_at DESC LIMIT 1)`,
+      lastMessageAt: sql<string | null>`(SELECT channel_messages.created_at FROM channel_messages JOIN sessions s2 ON s2.id = channel_messages.session_id WHERE s2.project_id = sessions.project_id ORDER BY channel_messages.created_at DESC LIMIT 1)`,
+    })
+    .from(sessions)
+    .groupBy(sessions.projectId)
+    .orderBy(sql`max(sessions.started_at) DESC`)
+    .all();
+
+  return rows.map((r) => {
+    const lastMsgAt = toIso(r.lastMessageAt);
+    return {
+      projectId: r.projectId,
+      sessionCount: Number(r.sessionCount ?? 0),
+      activeSessionCount: Number(r.activeSessionCount ?? 0),
+      agentCount: Number(r.agentCount ?? 0),
+      runningAgentCount: Number(r.runningAgentCount ?? 0),
+      toolCallCount: Number(r.toolCallCount ?? 0),
+      runningToolCallCount: Number(r.runningToolCallCount ?? 0),
+      testResultCount: Number(r.testResultCount ?? 0),
+      totalTokensIn: Number(r.totalTokensIn ?? 0),
+      totalTokensOut: Number(r.totalTokensOut ?? 0),
+      latestStatus: (r.latestStatus as ProjectListRow['latestStatus']) ?? null,
+      latestSessionTitle: r.latestSessionTitle,
+      latestSessionId: r.latestSessionId,
+      startedAt: toIso(r.startedAt),
+      lastActivityAt: toIso(r.lastActivityAt),
+      lastChannelMessage:
+        r.lastMessageContent && r.lastMessageFromName && lastMsgAt
+          ? { fromAgentName: r.lastMessageFromName, content: r.lastMessageContent, at: lastMsgAt }
           : null,
     };
   });
@@ -436,6 +521,87 @@ export function inBulkTx<T>(fn: () => T): T {
       db.run(sql`PRAGMA defer_foreign_keys = OFF`);
     }
   });
+}
+
+/* ───────────── agent_tasks (planning) ───────────── */
+
+export interface AgentTaskRow {
+  id: string;
+  sessionId: string;
+  agentId: string;
+  agentName: string;
+  title: string;
+  description: string | null;
+  status: 'planned' | 'in_progress' | 'blocked' | 'completed' | 'cancelled';
+  progressPct: number;
+  plannedStart: string;
+  plannedEnd: string;
+  actualStart: string | null;
+  actualEnd: string | null;
+  dependencies: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+function toTaskRow(t: AgentTask, agentName: string): AgentTaskRow {
+  let deps: string[] = [];
+  if (t.dependenciesJson) {
+    try { const v = JSON.parse(t.dependenciesJson); if (Array.isArray(v)) deps = v.filter((x) => typeof x === 'string'); }
+    catch { /* ignore malformed */ }
+  }
+  return {
+    id: t.id,
+    sessionId: t.sessionId,
+    agentId: t.agentId,
+    agentName,
+    title: t.title,
+    description: t.description,
+    status: t.status,
+    progressPct: t.progressPct,
+    plannedStart: toIso(t.plannedStart) ?? t.plannedStart,
+    plannedEnd: toIso(t.plannedEnd) ?? t.plannedEnd,
+    actualStart: toIso(t.actualStart),
+    actualEnd: toIso(t.actualEnd),
+    dependencies: deps,
+    createdAt: toIso(t.createdAt) ?? t.createdAt,
+    updatedAt: toIso(t.updatedAt) ?? t.updatedAt,
+  };
+}
+
+export function insertAgentTask(row: NewAgentTask): void {
+  getDb().insert(agentTasks).values(row).run();
+}
+
+export function listAgentTasks(sessionId: string): AgentTaskRow[] {
+  const rows = getDb()
+    .select({
+      task: agentTasks,
+      agentName: agents.name,
+    })
+    .from(agentTasks)
+    .innerJoin(agents, eq(agents.id, agentTasks.agentId))
+    .where(eq(agentTasks.sessionId, sessionId))
+    .orderBy(asc(agentTasks.plannedStart))
+    .all();
+  return rows.map((r) => toTaskRow(r.task, r.agentName));
+}
+
+export function getAgentTask(taskId: string): AgentTaskRow | null {
+  const r = getDb()
+    .select({ task: agentTasks, agentName: agents.name })
+    .from(agentTasks)
+    .innerJoin(agents, eq(agents.id, agentTasks.agentId))
+    .where(eq(agentTasks.id, taskId))
+    .get();
+  if (!r) return null;
+  return toTaskRow(r.task, r.agentName);
+}
+
+export function updateAgentTask(
+  taskId: string,
+  patch: Partial<Pick<AgentTask, 'status' | 'progressPct' | 'actualStart' | 'actualEnd' | 'updatedAt'>>,
+): void {
+  getDb().update(agentTasks).set({ ...patch, updatedAt: patch.updatedAt ?? new Date().toISOString() }).where(eq(agentTasks.id, taskId)).run();
 }
 
 export function nextSeq(sessionId: string): number {

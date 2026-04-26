@@ -7,6 +7,7 @@ import { userInputs } from '@agentdeck/shared';
 import { getDb } from '../db.js';
 import type { EventBus } from '../event-bus.js';
 import { appendEvent } from '../persistence.js';
+import { notifyAwaitingInput } from '../services/notify-user.js';
 
 const Body = z.object({ content: z.string().min(1) });
 const WaitQuery = z.object({
@@ -56,6 +57,18 @@ export const registerUserInputRoutes: FastifyPluginAsync<{ eventBus: EventBus }>
     };
     appendEvent(awaitingEvent);
     eventBus.emit(awaitingEvent);
+
+    // Surface this outside the dashboard — user is often in the CLI when an
+    // agent blocks on await_user_input, so a native toast saves them from
+    // having to babysit the web UI.
+    const dashboardUrl = process.env.AGENTDECK_DASHBOARD_URL ?? 'http://127.0.0.1:3000';
+    notifyAwaitingInput({
+      sessionId,
+      agentId: agentId ?? null,
+      agentName: agentName ?? null,
+      prompt: prompt ?? null,
+      dashboardUrl: `${dashboardUrl}/sessions/${sessionId}`,
+    });
 
     const finish = (inputId: string | null, timedOut: boolean) => {
       const resolvedEvent = {

@@ -22,6 +22,8 @@ import { registerExecDiffRoutes } from './routes/exec-diff.js';
 import { registerTestToolsRoutes } from './routes/test-tools.js';
 import { registerMethodologyRoutes } from './routes/methodology.js';
 import { registerCampaignsRoutes } from './routes/campaigns.js';
+import { registerProjectRoutes } from './routes/projects.js';
+import { registerAgentTaskRoutes } from './routes/agent-tasks.js';
 import { createEventBus } from './event-bus.js';
 import { initDb } from './db.js';
 import { sessionExists } from './persistence.js';
@@ -147,6 +149,8 @@ export async function buildServer(): Promise<{ app: FastifyInstance; io: SocketI
   await app.register(registerTestToolsRoutes);
   await app.register(registerMethodologyRoutes);
   await app.register(registerCampaignsRoutes);
+  await app.register(registerProjectRoutes);
+  await app.register(registerAgentTaskRoutes, { eventBus });
 
   // Finalize any bridge sessions still marked running from a prior proxy
   // run — a bridged CLI can no longer reach the new proxy instance, so

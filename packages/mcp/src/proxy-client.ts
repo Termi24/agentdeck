@@ -627,4 +627,39 @@ export class ProxyClient {
       },
     );
   }
+
+  taskPlan(input: {
+    agentId: string;
+    title: string;
+    description?: string;
+    plannedStart: string;
+    plannedEnd: string;
+    dependencies?: string[];
+  }) {
+    return this.request<{ taskId: string }>(
+      'POST',
+      `/sessions/${this.requireSession()}/agent-tasks`,
+      input,
+    );
+  }
+
+  taskUpdateProgress(input: {
+    taskId: string;
+    progressPct: number;
+    status?: 'planned' | 'in_progress' | 'blocked' | 'completed' | 'cancelled';
+  }) {
+    return this.request<{ ok: boolean }>(
+      'POST',
+      `/sessions/${this.requireSession()}/agent-tasks/${encodeURIComponent(input.taskId)}/progress`,
+      { progressPct: input.progressPct, status: input.status },
+    );
+  }
+
+  taskComplete(input: { taskId: string; status?: 'completed' | 'cancelled' }) {
+    return this.request<{ ok: boolean }>(
+      'POST',
+      `/sessions/${this.requireSession()}/agent-tasks/${encodeURIComponent(input.taskId)}/complete`,
+      { status: input.status ?? 'completed' },
+    );
+  }
 }

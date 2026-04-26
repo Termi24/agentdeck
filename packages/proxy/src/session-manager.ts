@@ -238,6 +238,11 @@ async function runSession(args: {
           // call these to surface fan-out work in the AgentTree.
           'mcp__agentdeck__spawn_agent',
           'mcp__agentdeck__stop_agent',
+          // Agent task planning (v0.0.6). Powers the dashboard Gantt /
+          // Calendar / progress views.
+          'mcp__agentdeck__task_plan',
+          'mcp__agentdeck__task_update_progress',
+          'mcp__agentdeck__task_complete',
         ],
       },
     });
