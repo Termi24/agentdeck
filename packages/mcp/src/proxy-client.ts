@@ -141,19 +141,38 @@ export class ProxyClient {
     return this.agentId;
   }
 
-  private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
-    const res = await fetch(`${this.baseUrl}${path}`, {
-      method,
-      headers: body ? { 'content-type': 'application/json' } : undefined,
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    if (!res.ok) {
+  /**
+   * Hard ceiling on every proxy call so a stalled / crashed proxy can never
+   * freeze the MCP stdio (and, transitively, the host CLI's tool-call loop).
+   * Long-poll endpoints — `await_user_input/wait` — pass an explicit larger
+   * timeout via `timeoutMs` since their server-side wait already enforces a
+   * cap. Everything else uses the default 30 s.
+   */
+  private async request<T>(method: string, path: string, body?: unknown, timeoutMs = 30_000): Promise<T> {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const res = await fetch(`${this.baseUrl}${path}`, {
+        method,
+        headers: body ? { 'content-type': 'application/json' } : undefined,
+        body: body ? JSON.stringify(body) : undefined,
+        signal: ctrl.signal,
+      });
+      if (!res.ok) {
+        if (res.status === 204) return undefined as T;
+        const text = await res.text();
+        throw new Error(`${method} ${path} → ${res.status}: ${text}`);
+      }
       if (res.status === 204) return undefined as T;
-      const text = await res.text();
-      throw new Error(`${method} ${path} → ${res.status}: ${text}`);
+      return (await res.json()) as T;
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        throw new Error(`${method} ${path} timed out after ${timeoutMs}ms (proxy may be stalled)`);
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
     }
-    if (res.status === 204) return undefined as T;
-    return (await res.json()) as T;
   }
 
   /**
@@ -292,9 +311,14 @@ export class ProxyClient {
     if (opts.agentId) qs.set('agentId', opts.agentId);
     if (opts.agentName) qs.set('agentName', opts.agentName);
     if (opts.prompt) qs.set('prompt', opts.prompt);
-    return this.request<{ inputId: string; content: string; at: string } | undefined>(
+    // Server-side caps the wait at `timeoutMs`. Add a 5 s slack on the fetch
+    // ceiling so the proxy can finalize cleanly before we abort — but we do
+    // abort if it exceeds that, otherwise a stalled proxy hangs the CLI.
+    return this.request<{ inputId: string; content: string; at: string; cancelled?: boolean } | undefined>(
       'POST',
       `/sessions/${this.requireSession()}/user-input/wait?${qs.toString()}`,
+      undefined,
+      timeoutMs + 5_000,
     );
   }
 

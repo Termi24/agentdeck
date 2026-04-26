@@ -99,6 +99,13 @@ export function submitUserInput(sessionId: string, content: string) {
   return postJson<{ inputId: string; at: string }>(`${PROXY_URL}/sessions/${sessionId}/user-input`, { content });
 }
 
+export function requestAgentCancel(sessionId: string, agentId: string) {
+  return postJson<{ agentId: string; at: string }>(
+    `${PROXY_URL}/sessions/${sessionId}/agents/${encodeURIComponent(agentId)}/cancel`,
+    {},
+  );
+}
+
 export function screenshotUrl(sessionId: string, screenshotId: string): string {
   return `${PROXY_URL}/sessions/${sessionId}/browser/screenshot/${screenshotId}`;
 }

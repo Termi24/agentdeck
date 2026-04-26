@@ -210,6 +210,15 @@ async function dispatch(name: ToolName, args: Record<string, unknown>): Promise<
       if (!result) {
         return `(no user input within ${timeoutMs}ms — tell the human user explicitly that you were waiting and timed out, then ask them how to proceed)`;
       }
+      if (result.cancelled) {
+        // Server detected a stop keyword (stop / non / cancel / arrête / …)
+        // and recorded an agent.cancel for the calling agent. Return an
+        // unambiguous halt directive — do NOT keep asking, do NOT call any
+        // further tool. The host CLI / orchestrator must surface this as the
+        // final message of the run.
+        try { process.stderr.write(`[agentdeck] user requested STOP — halting agent\n`); } catch {}
+        return `[CANCELLED by user — reply: "${result.content}"]\n\nThe human asked you to stop. Do NOT call any further tool. Respond with one short final acknowledgement and end your turn now.`;
+      }
       // The model reads this string. Tell it to relay clearly so the human in
       // the CLI knows the agent is unblocked even if they ignored the toast.
       return `[user replied via dashboard]: ${result.content}`;

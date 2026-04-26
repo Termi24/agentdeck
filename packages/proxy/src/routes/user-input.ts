@@ -3,11 +3,28 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { and, eq, gt } from 'drizzle-orm';
 import { setTimeout as wait } from 'node:timers/promises';
-import { userInputs } from '@agentdeck/shared';
+import { agentCancelRequests, userInputs } from '@agentdeck/shared';
 import { getDb } from '../db.js';
 import type { EventBus } from '../event-bus.js';
 import { appendEvent } from '../persistence.js';
 import { notifyAwaitingInput } from '../services/notify-user.js';
+
+/**
+ * Single-word negative responses that mean "halt the agent immediately".
+ * Lowercased and trimmed before the test. When matched, the wait endpoint
+ * also fires an agent.cancel for the awaiting agent so the CLI doesn't
+ * loop "are you sure?" forever — Claude sees a CANCELLED-prefixed reply
+ * and a check_cancellation that returns true.
+ */
+const STOP_KEYWORDS = new Set([
+  'stop', 'non', 'no', 'abort', 'cancel', 'halt', 'quit', 'exit',
+  'arrête', 'arrete', 'arrêt', 'arret', 'annule', 'annuler', 'stoppe',
+]);
+
+function isStopKeyword(content: string): boolean {
+  const trimmed = content.trim().toLowerCase().replace(/[!.\s]+$/u, '');
+  return STOP_KEYWORDS.has(trimmed);
+}
 
 const Body = z.object({ content: z.string().min(1) });
 const WaitQuery = z.object({
@@ -95,7 +112,35 @@ export const registerUserInputRoutes: FastifyPluginAsync<{ eventBus: EventBus }>
       if (next) {
         getDb().update(userInputs).set({ consumed: true }).where(eq(userInputs.id, next.id)).run();
         finish(next.id, false);
-        return { inputId: next.id, content: next.content, at: next.createdAt };
+        // If the user's reply is a clear "stop / non / cancel" keyword, also
+        // record a cancel request for the awaiting agent so the next
+        // check_cancellation polls returns true. Avoids the infamous "agent
+        // re-asks 'are you sure?' until the human ragequits the CLI" loop.
+        const cancelled = agentId ? isStopKeyword(next.content) : false;
+        if (cancelled && agentId) {
+          const at = new Date().toISOString();
+          const existing = getDb()
+            .select()
+            .from(agentCancelRequests)
+            .where(and(eq(agentCancelRequests.agentId, agentId), eq(agentCancelRequests.sessionId, sessionId)))
+            .get();
+          if (!existing) {
+            getDb()
+              .insert(agentCancelRequests)
+              .values({ agentId, sessionId, requestedAt: at, requestedByAgentId: null })
+              .run();
+          }
+          const cancelEvent = {
+            type: 'agent.cancel.requested' as const,
+            sessionId,
+            agentId,
+            requestedByAgentId: null,
+            at,
+          };
+          appendEvent(cancelEvent);
+          eventBus.emit(cancelEvent);
+        }
+        return { inputId: next.id, content: next.content, at: next.createdAt, cancelled };
       }
       await wait(500);
     }

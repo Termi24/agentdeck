@@ -1,7 +1,8 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, OctagonX } from 'lucide-react';
 import { useSession } from '@/components/session-context';
+import { requestAgentCancel, submitUserInput } from '@/lib/session-api';
 
 const tickEvery = 1_000;
 
@@ -21,8 +22,9 @@ function fmtElapsed(ms: number): string {
  * y a une attente, pour que l'utilisateur la voie même depuis un autre onglet.
  */
 export function AwaitingInputBanner() {
-  const { pendingInputs } = useSession();
+  const { sessionId, pendingInputs } = useSession();
   const [now, setNow] = useState(() => Date.now());
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     if (pendingInputs.length === 0) return;
@@ -48,6 +50,25 @@ export function AwaitingInputBanner() {
 
   const focusInput = () => {
     document.querySelector<HTMLInputElement>('form input[placeholder^="Inject"]')?.focus();
+  };
+
+  // Cancel every awaiting agent: fire request_agent_cancel for each agentId
+  // we know about, then submit a clear stop message so the wait endpoint
+  // returns to the MCP with cancelled=true. The MCP side translates that
+  // into a halt directive for Claude. Idempotent — clicking twice does no
+  // harm (cancel rows are deduped server-side).
+  const stopAll = async () => {
+    if (cancelling || pendingInputs.length === 0) return;
+    setCancelling(true);
+    try {
+      for (const req of pendingInputs) {
+        if (!req.agentId) continue;
+        try { await requestAgentCancel(sessionId, req.agentId); } catch { /* keep going */ }
+      }
+      try { await submitUserInput(sessionId, 'stop'); } catch { /* fall back, banner will clear when wait resolves */ }
+    } finally {
+      setCancelling(false);
+    }
   };
 
   return (
@@ -89,13 +110,25 @@ export function AwaitingInputBanner() {
             })}
           </ul>
         </div>
-        <button
-          type="button"
-          onClick={focusInput}
-          className="ml-2 shrink-0 rounded-md bg-white/15 px-3 py-1.5 text-sm font-semibold ring-1 ring-white/30 transition hover:bg-white/25"
-        >
-          Répondre maintenant
-        </button>
+        <div className="ml-2 flex shrink-0 flex-col gap-1.5 sm:flex-row sm:items-center">
+          <button
+            type="button"
+            onClick={focusInput}
+            className="rounded-md bg-white/15 px-3 py-1.5 text-sm font-semibold ring-1 ring-white/30 transition hover:bg-white/25"
+          >
+            Répondre
+          </button>
+          <button
+            type="button"
+            onClick={stopAll}
+            disabled={cancelling}
+            className="inline-flex items-center gap-1.5 rounded-md bg-black/30 px-3 py-1.5 text-sm font-semibold ring-1 ring-white/40 transition hover:bg-black/50 disabled:opacity-60"
+            title="Demande l'arrêt immédiat de tous les agents en attente (request_agent_cancel + submit 'stop')"
+          >
+            <OctagonX className="h-4 w-4" />
+            {cancelling ? 'Stop…' : 'STOP agent'}
+          </button>
+        </div>
       </div>
     </div>
   );
