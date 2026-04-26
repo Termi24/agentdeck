@@ -63,22 +63,31 @@ Every session page has a slider below the header. Drag it to rewind the UI to an
 
 - Node 22, TypeScript 5.7, pnpm 9, Turborepo 2.
 - **Proxy** (`packages/proxy`): Fastify 5 + Socket.IO 4 + `@anthropic-ai/claude-agent-sdk` + Drizzle ORM + better-sqlite3 + Playwright 1.59.
-- **MCP** (`packages/mcp`): `@modelcontextprotocol/sdk` stdio — spawned per session, 31 tools.
-- **Shared** (`packages/shared`): Drizzle schema (15 tables) + zod event contracts (17 event types, zod 4 native JSON Schema).
-- **Web** (`apps/web`): Next.js 15 App Router + React 19 + Tailwind + shadcn/ui + `dockview-react`.
+- **MCP** (`packages/mcp`): `@modelcontextprotocol/sdk` stdio — spawned per session, 47 tools (count derived from `TOOL_DEFINITIONS.length`).
+- **Shared** (`packages/shared`): Drizzle schema (19 tables) + zod event contracts (25 event types, zod 4 native JSON Schema).
+- **Web** (`apps/web`): Next.js 15 App Router + React 19 + Tailwind 4 + shadcn/ui + `dockview-react` + react-window v2 (virtualized activity feed above 500 events).
 
 ## Layout
 
 ```
 apps/
   web/                      Next.js UI
-  desktop/                  Tauri 2 shell (deferred — launcher is the shipping path)
+  desktop/                  Tauri 2 shell (deferred — see apps/desktop/README.md)
 packages/
-  shared/                   Drizzle schema + zod events
+  shared/                   Drizzle schema (19 tables) + zod events (25 types)
   proxy/                    REST + Socket.IO + Playwright + SDK wrapper
-  mcp/                      MCP stdio server (31 tools)
-procedures/                 User-authored runbooks (YAML or Markdown)
-scripts/launch.mjs          Cross-platform launcher
+                            + multi-agent registry + sdk-attribution middleware
+  mcp/                      MCP stdio server (47 tools, dist/ rebuilt by prepare hook)
+procedures/                 User-authored runbooks (YAML or Markdown, indexed in README)
+audit/                      Versioned campaign artefacts (see audit/README.md)
+_qa/regression-suite.jsonl  HTTP regression probes for daily runs
+scripts/
+  launch.mjs                Cross-platform launcher
+  build-exe.mjs             pkg-based single-binary build
+  install-claude.mjs        Bridge Claude CLI to agentdeck (47-tool allowlist)
+  check-tool-count.mjs      Single-source-of-truth validator (pre-commit + CI)
+.husky/pre-commit           Local invariant: runs check-tool-count
+.github/workflows/ci.yml    CI: check-tool-count + typecheck on push/PR
 start.cmd                   Windows double-click entry
 data/
   agentdeck.db              SQLite (WAL)
@@ -92,3 +101,15 @@ Everything persists to `data/agentdeck.db` (SQLite, WAL mode). Per-session works
 ## Auth
 
 The SDK reads `~/.claude/` credentials; no `ANTHROPIC_API_KEY` needed. The secrets store uses a master key at `~/.agentdeck/master.key` (auto-generated on first use) or the `AGENTDECK_SECRETS_KEY` env var if you want to override.
+
+## Tooling & invariants (v0.0.8+)
+
+- **`pnpm check:tool-count`** — validates that the 47 MCP tools listed in `packages/mcp/src/tools.ts` (`TOOL_DEFINITIONS`), `packages/proxy/src/session-manager.ts` (SDK `allowedTools`), and `scripts/install-claude.mjs` (CLI `TOOL_NAMES`) are perfectly aligned. Drift across these three locked the bridge five times across v0.0.1 → v0.0.7.
+- **Husky pre-commit** (`.husky/pre-commit`) runs `check:tool-count` on every local commit; **GitHub Actions** (`.github/workflows/ci.yml`) mirrors it on push/PR + runs `pnpm typecheck` across all 4 workspaces.
+- **`prepare` hook** in `packages/mcp/package.json` rebuilds `dist/index.js` automatically on `pnpm install` so the CLI bridge never ships stale tool schemas.
+- **`AGENTDECK_LOG_META=1`** env var in the MCP server logs every `_meta` object received on each `CallToolRequest` to stderr — empirical probe for the v0.0.8 BUG-SDK-1 forward-compat patch (sub-agent attribution via `X-Agent-Tool-Use-Id`).
+- **`?virtualize=1` / `?virtualize=0`** URL params on `/sessions/[id]` force-toggle the react-window virtualized activity feed (auto-on above 500 events).
+
+## Releases
+
+Versioned in `CHANGELOG.md`. Latest: **v0.0.8** — sub-agent attribution forward-compat, virtualized activity feed, husky/CI invariant lock-in, audit/ artefacts committed.

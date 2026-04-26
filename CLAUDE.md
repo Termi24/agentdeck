@@ -34,16 +34,20 @@ Four moving parts, all TypeScript, ESM:
 - Path resolution for `DATABASE_URL` / `WORKSPACE_ROOT` happens against the repo root via `packages/proxy/src/config.ts` walking ancestors to find `pnpm-workspace.yaml`. Never use `process.cwd()` for data paths — `pnpm --filter` changes the cwd of spawned processes.
 - **Bridge session lifecycle** (`packages/proxy/src/services/bridge-watchdog.ts`). SDK sessions are finalized by their own `runSession()` loop. Bridge sessions (Claude CLI + any external orchestrator that posts `{bridge:true}`) have nothing behind them — the proxy never knows when the owning process dies. Three mechanisms close that gap: (1) an in-memory heartbeat map bumped by `POST /sessions/:id/heartbeat` from the MCP stdio process every 30 s; (2) a watchdog sweep every 30 s that finalizes any bridge whose last heartbeat is older than 90 s (the `BOOT_GRACE_MS` of 60 s defers the first sweep so a freshly-rebooted proxy doesn't reap still-living CLIs); (3) a boot reaper at startup finalizes every bridge still marked `running` in the DB (necessarily ghosts of a prior proxy instance). A revival path in `bumpBridgeHeartbeat` flips a reaped row back to `running` on the first incoming heartbeat so CLIs that survived a proxy restart aren't lost.
 - **`runSessions()`** ordering in the dashboard: the REST `GET /sessions/:id` aggregates (agent counts, running tool-call counts, channel/doc/test counts, lastActivityAt, lastChannelMessage) are computed with correlated sub-queries in `persistence.ts:getSession()` and `listSessions()`. The Socket.IO stream fires deltas but not pre-computed counts, so the UI polls REST every 8 s on top of the live event stream. `lastActivityAt` and `lastMessageAt` are normalized to ISO 8601 UTC by `persistence.ts:toIso()` because the SQLite `current_timestamp` default produces `"YYYY-MM-DD HH:MM:SS"` (no T, no Z) which Chrome interprets as local time and breaks `relativeTime()` for non-UTC users.
+- **Sub-agent attribution via `X-Agent-Tool-Use-Id`** (v0.0.8+, `services/sdk-attribution.ts` + `services/multi-agent-registry.ts`). The MCP shim extracts `_meta.toolUseId` (or snake_case `_meta.tool_use_id`) from each `CallToolRequest` and forwards it as the `X-Agent-Tool-Use-Id` HTTP header on every shim call. A Fastify `preHandler` middleware on the proxy reads the header, queries the per-session `MultiAgentContext` registry (populated by `runSession()`), and rewrites the agent-attribution body field on 7 routes (channel, dm, docs, sandbox/exec, test-results, agents, agent-cancel) to the real sub-agent UUID. **No-op fallbacks (zero-regression)**: header absent (host doesn't pass it), session not in registry (bridge mode — proxy never sees the SDK), or `toolUseId` not yet in `toolUseOwner` (translator race) all leave the body untouched and preserve current behavior. Set `AGENTDECK_LOG_META=1` in the MCP env to log every `_meta` received in stderr — permanent empirical probe to confirm what the host actually populates. Bridge mode stays open: see `audit/13-sdk-1-design-memo.md` §Gaps for the future `attribute_tool_use` MCP tool that would close it.
+- **Tool count single source of truth** (v0.0.8+). The MCP server's `SERVER_INSTRUCTIONS` tool count and `version` are derived dynamically at boot from `TOOL_DEFINITIONS.length` (in `tools.ts`) and the sibling `package.json`. The two manual mirrors that must match (`session-manager.ts allowedTools` for the SDK pre-approval and `install-claude.mjs TOOL_NAMES` for the CLI bridge pre-approval) are validated by `scripts/check-tool-count.mjs`, which runs on every commit (husky pre-commit) and every push/PR (`.github/workflows/ci.yml`). Drift across the three sources broke the bridge five times across v0.0.1→v0.0.7 — this lock-in is non-negotiable.
 
 ## Common commands
 
 ```bash
-pnpm install              # first-time setup (compiles better-sqlite3)
+pnpm install              # first-time setup (compiles better-sqlite3, runs `prepare`
+                          # hooks: husky install + @agentdeck/mcp build)
 pnpm --filter @agentdeck/proxy exec playwright install chromium   # Chromium for browser tools
 pnpm db:generate          # after any schema.ts change
 pnpm db:migrate           # apply migrations
 pnpm dev                  # turbo runs proxy + web + mcp in parallel
 pnpm typecheck            # all workspaces
+pnpm check:tool-count     # validate tools.ts / session-manager / install-claude alignment
 node scripts/launch.mjs   # production launcher (proxy + web + open browser)
 # or on Windows: double-click start.cmd
 ```
@@ -57,7 +61,9 @@ node scripts/launch.mjs   # production launcher (proxy + web + open browser)
 - **Secrets** encrypted AES-256-GCM, master key at `~/.agentdeck/master.key` (or `AGENTDECK_SECRETS_KEY` env).
 - **Playwright** tries `channel: 'chrome' → 'msedge' → bundled chromium`. Default: one `Browser` + one session-level `BrowserContext` + `Page` per session. Sub-agents opt into **per-agent isolated contexts** via `browser_new_context` — required whenever two or more agents run personas in parallel, otherwise cookies/localStorage/SW leak across personas and produce false-positive bug reports (see the IndusForge post-mortem under `procedures/METHODOLOGY-REVIEW.md`).
 - **Do not add Postgres** unless multi-user server mode lands.
-- **Don't touch `apps/desktop`** — Tauri is deferred; the launcher is the shipping path.
+- **Don't touch `apps/desktop`** — Tauri is deferred; the launcher (`scripts/launch.mjs`) and the `pkg`-based exe (`scripts/build-exe.mjs`) are the shipping paths. See `apps/desktop/README.md` for the three triggers that would re-open the question.
+- **Husky pre-commit + GitHub Actions** (`.husky/pre-commit`, `.github/workflows/ci.yml`) lock in `pnpm check:tool-count` on every local commit and every push/PR. Don't bypass with `--no-verify` unless explicitly authorized.
+- **Release notes live in `CHANGELOG.md`** at the repo root (since v0.0.8). The `audit/` folder ships with the repo — campaign artefacts are versioned for the next campaign's diff baseline (see `audit/README.md`).
 
 ## Windows gotchas
 
@@ -134,7 +140,9 @@ In CLI mode, the MCP's `AGENTDECK_SESSION_ID` env var is absent. `ProxyClient.en
 
 **Sub-agent registration** — when a skill or orchestrator fans out work via Task() / multi-persona patterns, call `mcp__agentdeck__spawn_agent({name, role?, prompt?, parentAgentId?})` to register each sub-agent so it appears in the AgentTree with its own activity feed and tool-call counters. Pair with `mcp__agentdeck__stop_agent({agentId, status})` at end-of-run. Without this, the proxy sees only one noisy agent (the bridge root) doing everything.
 
-Pre-built `packages/mcp/dist/index.js` is required for CLI bridge because `claude` spawns the command without access to `tsx`. `pnpm --filter @agentdeck/mcp build` regenerates it.
+**Sub-agent attribution in bridge mode** is **partially open** — `X-Agent-Tool-Use-Id` (v0.0.8) closes the gap for proxy-hosted SDK sessions but bridge sessions don't have a `toolUseOwner` map on the proxy side (the SDK runs in the host process, the proxy never sees the events). Channel posts / DMs / docs / test-results / sandbox-exec / etc. emitted by a Claude Code sub-agent through the bridge **continue to be attributed to the bridge root** until a future `attribute_tool_use({toolUseId, agentId})` MCP tool is shipped. Cf. `audit/13-sdk-1-design-memo.md` §Gaps.
+
+Pre-built `packages/mcp/dist/index.js` is required for CLI bridge because `claude` spawns the command without access to `tsx`. The `prepare` hook in `packages/mcp/package.json` rebuilds it on every `pnpm install`; manual rebuild via `pnpm --filter @agentdeck/mcp build` if you change `src/` mid-session.
 
 ## External orchestrator integration
 
@@ -152,6 +160,17 @@ The hub UI is **agnostic to the target product**: nothing is hardcoded about CRM
 
 `SessionProvider` exposes `{ events, totalEvents, scrubIndex, setScrubIndex, isLive }`. When `scrubIndex` is not `null`, it slices the event array at `[0, scrubIndex+1)` and passes the truncated list downstream — all panels re-fold from that truncated stream naturally because they're pure reducers over `events`. The `ReplayScrubber` component sits between the header and the dockview and drives `scrubIndex`.
 
+## Activity feed virtualization (v0.0.8+)
+
+`/sessions/[id]` auto-switches between two `<ActivityFeed/>` implementations:
+
+- **Default** (`activity-feed.tsx`) — radix `<ScrollArea/>` + plain `.map()`. Smoothest under ~500 events.
+- **Virtualized** (`activity-feed-virtualized.tsx`) — react-window v2 `<List/>` + `useDynamicRowHeight` (auto ResizeObserver). Activated when `events.length >= VIRTUALIZE_THRESHOLD` (constant exported = 500), or forced via URL param `?virtualize=1` / `?virtualize=0` (override).
+
+Both share `foldEvents` / `FeedRow` / `Filter` / `TONE_CLASSES` exports — the rendered output is identical, only the rendering strategy differs. Adjust the threshold based on perf-auditor measurements; 500 is conservative.
+
 ## Known open items
 
-- **Tauri 2 packaging** — deferred, requires Rust toolchain + MSI signing. Launcher is sufficient for local desktop use.
+- **Tauri 2 packaging** — deferred, requires Rust toolchain + MSI signing. Launcher (`scripts/launch.mjs`) + `pkg`-based exe (`scripts/build-exe.mjs`) are the current shipping paths. Three explicit re-evaluation triggers documented in `apps/desktop/README.md`.
+- **BUG-SDK-1 in bridge mode** — the v0.0.8 forward-compat patch fixes proxy-hosted SDK sessions; bridge sessions still attribute sub-agent writes to the bridge root because the proxy doesn't see the SDK event stream. Future fix in `audit/13-sdk-1-design-memo.md` §Gaps.
+- **Empirical confirmation that `_meta.toolUseId` is populated by Anthropic SDK in CallToolRequests** — the v0.0.8 patch is forward-compatible but unverified end-to-end. `AGENTDECK_LOG_META=1` makes the MCP a permanent probe; first SDK session run with this env answers it.
