@@ -23,9 +23,9 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useSession } from '@/components/session-context';
 import { relativeTime } from './shared';
 
-type Filter = 'all' | 'channel' | 'tools' | 'docs' | 'tests' | 'agents';
+export type Filter = 'all' | 'channel' | 'tools' | 'docs' | 'tests' | 'agents';
 
-interface FeedItem {
+export interface FeedItem {
   key: string;
   at: string;
   category: Exclude<Filter, 'all'> | 'session';
@@ -37,7 +37,7 @@ interface FeedItem {
   rightBadge?: string | null;
 }
 
-const TONE_CLASSES: Record<FeedItem['tone'], string> = {
+export const TONE_CLASSES: Record<FeedItem['tone'], string> = {
   blue: 'bg-sky-500/10 text-sky-400 border-sky-500/30',
   purple: 'bg-violet-500/10 text-violet-400 border-violet-500/30',
   emerald: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
@@ -157,7 +157,7 @@ export function ActivityFeed({ agentFilterId, agentFilterName, onClearAgentFilte
   );
 }
 
-function FeedRow({ item }: { item: FeedItem }) {
+export function FeedRow({ item }: { item: FeedItem }) {
   const Icon = item.icon;
   return (
     <div className="flex items-start gap-3 border-b border-border/30 px-4 py-2.5 text-xs animate-in fade-in-0 slide-in-from-bottom-1 duration-150 last:border-0">
@@ -185,7 +185,7 @@ function FeedRow({ item }: { item: FeedItem }) {
   );
 }
 
-function foldEvents(events: ReadonlyArray<AgentDeckEvent>, filterAgentId: string | null): FeedItem[] {
+export function foldEvents(events: ReadonlyArray<AgentDeckEvent>, filterAgentId: string | null): FeedItem[] {
   const items: FeedItem[] = [];
   // agentId → name cache built as we walk events (so tool calls know their agent)
   const nameFor: Record<string, string> = {};
