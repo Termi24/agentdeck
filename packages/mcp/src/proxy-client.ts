@@ -19,6 +19,13 @@ export class ProxyClient {
   private announcedFirstCall = false;
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private spawnInfo: EnsureProxyResult | null = null;
+  // BUG-SDK-1 forward-compat: tool_use_id of the currently-dispatching MCP
+  // CallToolRequest, if the host (e.g. Claude Agent SDK) chose to populate
+  // _meta.toolUseId. The proxy reads it from the X-Agent-Tool-Use-Id request
+  // header and resolves the real sub-agent owner via the translator's
+  // toolUseOwner map. Cleared after each dispatch to prevent leakage between
+  // tool calls. Cf. audit/13-sdk-1-design-memo.md.
+  private currentToolUseId: string | null = null;
 
   constructor() {
     // Provisional values — replaced by ensureProxyReachable() before any HTTP call.
@@ -125,6 +132,10 @@ export class ProxyClient {
     return lines.join('\n');
   }
 
+  setCurrentToolUseId(id: string | null): void {
+    this.currentToolUseId = id;
+  }
+
   currentAgentContext(): { agentId: string | null; agentName: string | null } | null {
     if (!this.agentId) return null;
     const agentName = config.AGENTDECK_SKILL_NAME ?? config.AGENTDECK_AGENT_NAME ?? null;
@@ -148,13 +159,20 @@ export class ProxyClient {
    * timeout via `timeoutMs` since their server-side wait already enforces a
    * cap. Everything else uses the default 30 s.
    */
+  private buildHeaders(body?: unknown): Record<string, string> | undefined {
+    const h: Record<string, string> = {};
+    if (body) h['content-type'] = 'application/json';
+    if (this.currentToolUseId) h['x-agent-tool-use-id'] = this.currentToolUseId;
+    return Object.keys(h).length > 0 ? h : undefined;
+  }
+
   private async request<T>(method: string, path: string, body?: unknown, timeoutMs = 30_000): Promise<T> {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
       const res = await fetch(`${this.baseUrl}${path}`, {
         method,
-        headers: body ? { 'content-type': 'application/json' } : undefined,
+        headers: this.buildHeaders(body),
         body: body ? JSON.stringify(body) : undefined,
         signal: ctrl.signal,
       });
@@ -184,7 +202,7 @@ export class ProxyClient {
   private async requestSoft<T>(method: string, path: string, body?: unknown): Promise<T> {
     const res = await fetch(`${this.baseUrl}${path}`, {
       method,
-      headers: body ? { 'content-type': 'application/json' } : undefined,
+      headers: this.buildHeaders(body),
       body: body ? JSON.stringify(body) : undefined,
     });
     if (res.status === 204) return undefined as T;

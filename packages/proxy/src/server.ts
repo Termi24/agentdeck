@@ -28,6 +28,7 @@ import { createEventBus } from './event-bus.js';
 import { initDb } from './db.js';
 import { sessionExists } from './persistence.js';
 import { reapOrphanBridgesOnBoot, startBridgeWatchdog } from './services/bridge-watchdog.js';
+import { registerSdkAttributionMiddleware } from './services/sdk-attribution.js';
 
 /**
  * Match `/sessions/<uuid>/...` URLs. Used by the global onRequest hook
@@ -132,6 +133,13 @@ export async function buildServer(): Promise<{ app: FastifyInstance; io: SocketI
       return reply.notFound(`session ${sessionId} not found`);
     }
   });
+
+  // BUG-SDK-1 forward-compat: rewrites agent-attribution body fields
+  // when the MCP shim passes a tool_use_id via X-Agent-Tool-Use-Id header.
+  // No-op if the header is absent or the session isn't a proxy-hosted SDK
+  // run (bridge sessions skip this resolution path by design). Must run
+  // before the route handlers so they observe the rewritten body.
+  registerSdkAttributionMiddleware(app);
 
   await app.register(registerSessionRoutes, { eventBus });
   await app.register(registerChannelRoutes, { eventBus });

@@ -17,6 +17,10 @@ import {
 import { registerBridgeSession, unregisterBridgeSession } from './services/bridge-watchdog.js';
 import { translate, type MultiAgentContext } from './sdk-translator.js';
 import { resolveMcpServerCommand } from './mcp-bootstrap.js';
+import {
+  registerMultiAgentContext,
+  unregisterMultiAgentContext,
+} from './services/multi-agent-registry.js';
 
 export interface StartSessionInput {
   projectId: string;
@@ -155,10 +159,17 @@ async function runSession(args: {
     toolUseOwner: new Map(),
     taskToolUseToChild: new Map(),
   };
+  // BUG-SDK-1 forward-compat: register the context so the
+  // sdk-attribution middleware can resolve X-Agent-Tool-Use-Id headers
+  // back to the real sub-agent that emitted the tool_use. Bridge sessions
+  // skip this path by construction (they don't run runSession()), so the
+  // middleware no-ops for them — see audit/13-sdk-1-design-memo.md §gaps.
+  registerMultiAgentContext(sessionId, ctx);
 
   let tokensIn = 0;
   let tokensOut = 0;
   let status: 'completed' | 'failed' | 'cancelled' = 'completed';
+  let unregistered = false;
 
   try {
     const mcpServer = resolveMcpServerCommand({
@@ -310,6 +321,10 @@ async function runSession(args: {
   }
 
   const now = new Date().toISOString();
+  if (!unregistered) {
+    unregisterMultiAgentContext(sessionId);
+    unregistered = true;
+  }
   finalizeAgent(rootAgentId, { status, tokensIn, tokensOut });
   finalizeSession(sessionId, { status, totalTokensIn: tokensIn, totalTokensOut: tokensOut });
 

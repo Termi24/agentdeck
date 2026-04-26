@@ -101,11 +101,33 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: toolList 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const name = request.params.name as ToolName;
   const args = (request.params.arguments ?? {}) as Record<string, unknown>;
+  // BUG-SDK-1 forward-compat: if the host (Claude Agent SDK or similar) chose
+  // to populate _meta.toolUseId, propagate it through the proxy client so the
+  // downstream HTTP shim can attribute writes to the real sub-agent (not the
+  // bridge root). _meta is z.core.$loose in the MCP spec; passthrough fields
+  // are unspecified, but Anthropic's SDK has tool_use_id everywhere — see
+  // audit/13-sdk-1-design-memo.md §3 for the full design. AGENTDECK_LOG_META=1
+  // turns this into an empirical probe: every _meta seen is logged to stderr
+  // so we can confirm what the host actually sends in the wild.
+  const meta = (request.params as { _meta?: Record<string, unknown> })._meta;
+  if (process.env.AGENTDECK_LOG_META === '1' && meta) {
+    process.stderr.write(`[agentdeck-mcp] _meta for ${name}: ${JSON.stringify(meta)}\n`);
+  }
+  const toolUseId = typeof meta?.toolUseId === 'string'
+    ? meta.toolUseId
+    : typeof (meta as { tool_use_id?: unknown })?.tool_use_id === 'string'
+      ? (meta as { tool_use_id: string }).tool_use_id
+      : null;
   try {
     await proxy.ensureReady();
-    const text = await dispatch(name, args);
-    const banner = proxy.maybeSessionBanner();
-    return { content: [{ type: 'text', text: banner ? `${banner}\n\n${text}` : text }] };
+    proxy.setCurrentToolUseId(toolUseId);
+    try {
+      const text = await dispatch(name, args);
+      const banner = proxy.maybeSessionBanner();
+      return { content: [{ type: 'text', text: banner ? `${banner}\n\n${text}` : text }] };
+    } finally {
+      proxy.setCurrentToolUseId(null);
+    }
   } catch (err) {
     return { content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }], isError: true };
   }

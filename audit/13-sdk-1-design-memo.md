@@ -1,9 +1,26 @@
 # Design memo — BUG-SDK-1 : sub-agent attribution dans le shim MCP
 
-**Status** : RFC, awaiting Amine GO before implementation
+**Status** : Forward-compat patch shipped in v0.0.8 (proxy mode only). Bridge mode still open — see §Gaps.
 **Origin** : `audit/12-final-summary.md` recommandation #5 ; `audit/patches/bug-6-SDK-1.md` (PATCH-BLOCKED)
 **Author** : claude-code 2026-04-26
 **Vault mirror** : [[01-Projects/agentdeck/02-Architecture/ADRs/ADR-003-sub-agent-attribution]]
+
+## Patch shipped (v0.0.8)
+
+Forward-compatible option (b') landed:
+
+- **MCP shim** (`packages/mcp/src/index.ts` + `proxy-client.ts`) extracts `_meta.toolUseId` (and `_meta.tool_use_id` as a snake_case fallback) from each `CallToolRequest` and forwards it via the `X-Agent-Tool-Use-Id` header on every proxy HTTP shim call. Setting `AGENTDECK_LOG_META=1` logs every `_meta` received in stderr — turns the running MCP into a permanent empirical probe so we'll know in the wild whether Anthropic SDK populates `toolUseId` without re-instrumenting.
+- **Proxy translator registry** (`packages/proxy/src/services/multi-agent-registry.ts`) holds the `MultiAgentContext` (with its `toolUseOwner` and `taskToolUseToChild` maps) for every proxy-hosted SDK session. `runSession()` registers/unregisters in matching `try/finally`-equivalent boundaries.
+- **Attribution middleware** (`packages/proxy/src/services/sdk-attribution.ts`) Fastify `preHandler` reads the header, queries `getToolUseOwner(sessionId, toolUseId)`, and rewrites the body's agent-attribution field on 7 routes: channel, dm, docs, sandbox/exec, test-results, agents (parentAgentId — fixes spawn_agent flattening), agent-cancel.
+- **Regression entries** REG-016 (channel attribution) and REG-017 (spawn_agent hierarchy) added to `_qa/regression-suite.jsonl`.
+
+The patch is **no-op when the header is absent** (current bridge behavior preserved) and **no-op when the registry is empty** (bridge sessions remain unaddressed — see §Gaps below). Zero regression risk on the existing happy paths; activate the new behavior only when the SDK starts shipping `_meta.toolUseId` (or with a future bridge-side workaround).
+
+## Gaps still open
+
+1. **Bridge mode**: Claude CLI / external orchestrators run the SDK out-of-process; the proxy never sees the tool_use stream and the registry stays empty. The middleware no-ops, sub-agents continue to attribute to the root agent. Future fix: a new MCP tool `attribute_tool_use({toolUseId, agentId})` that the bridge SDK calls just before each tool_use, populating a side map keyed by `(sessionId, toolUseId)`. Out of scope for v0.0.8.
+2. **Empirical confirmation that `_meta.toolUseId` is populated by the Anthropic SDK**: the patch is forward-compatible but unverified. `AGENTDECK_LOG_META=1` provides the probe; first SDK session run with this env should answer it. If negative, options (b) UPDATE-after or option (a) SDK extension become the path forward.
+3. **project_memory + browser screenshots**: not in `ROUTE_RULES` because the URL doesn't carry a sessionId. A future patch can pass `X-Agent-Session-Id` from the shim alongside the tool_use header.
 
 ## TL;DR
 
