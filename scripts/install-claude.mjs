@@ -111,10 +111,11 @@ async function main() {
   log('registering agentdeck MCP server via `claude mcp add --scope user`…');
   await runClaudeMcpAdd();
 
-  // Step 2: pre-approve the 42 tools in user-level permissions so the
+  // Step 2: pre-approve every MCP tool in user-level permissions so the
   // CLI never prompts the user to approve them one-by-one. Stays in
   // settings.json — that's the file the CLI consults for permissions
   // (the registry only carries the server connection metadata).
+  // Count is derived from TOOL_NAMES.length (currently 47, v0.0.7).
   // Defensive cleanup: remove any leftover `mcpServers.agentdeck` entry
   // that an older install-claude.mjs may have written. The registry is
   // now the single source of truth for the connection.

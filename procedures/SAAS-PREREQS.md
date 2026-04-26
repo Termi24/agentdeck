@@ -4,6 +4,12 @@ Checklist to verify a target SaaS is ready for an agentdeck test campaign.
 Skipping any item in this list is the #1 reason a campaign wastes the
 first hour on re-discovered environmental friction.
 
+## 0. agentdeck itself
+
+- [ ] **Proxy reachable** : `curl -fsS http://127.0.0.1:4317/health` returns `200` and a JSON body. If it fails, `pnpm dev` (or `start.cmd`) hasn't booted yet — wait for `Listening on :4317`. Skipping this step is the #1 cause of the ui-playwright auditor losing its first cycle to `fetch failed`.
+- [ ] **Web UI reachable** : `curl -fsS -o /dev/null -w "%{http_code}\n" http://127.0.0.1:3000` returns `200`. Hub may take 5-10 s longer than the proxy on cold boot.
+- [ ] **Bridge MCP up** : in any `claude` CLI, the first tool call should print `[agentdeck] bridged session: http://127.0.0.1:3000/sessions/<id>`. If it errors with `fetch failed`, the proxy died after install-claude — restart `pnpm dev`.
+
 ## 1. Accounts & isolation
 
 - [ ] **One account per role** exists on the target. Passwords are known and stored under a secret (`PERSONAS_JSON`).

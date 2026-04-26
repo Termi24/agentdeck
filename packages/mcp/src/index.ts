@@ -8,11 +8,29 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { setTimeout as wait } from 'node:timers/promises';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { TOOL_DEFINITIONS, type ToolName } from './tools.js';
 import { ProxyClient } from './proxy-client.js';
 import { config } from './config.js';
 
-const SERVER_INSTRUCTIONS = `agentdeck — local QA orchestrator + 44 MCP tools for exhaustive
+// Derive version + tool count dynamically. Hard-coded counts in this file
+// drifted four times across v0.0.1→v0.0.7 (30 / 31 / 36 / 42 / 44 / 47);
+// the only authoritative source is TOOL_DEFINITIONS.length and the sibling
+// package.json. See audit/12-final-summary.md "tool_count_consistency".
+const MCP_PACKAGE_VERSION = (() => {
+  try {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const pkg = JSON.parse(readFileSync(resolve(here, '..', 'package.json'), 'utf8'));
+    return typeof pkg.version === 'string' ? pkg.version : '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+})();
+const TOOL_COUNT = TOOL_DEFINITIONS.length;
+
+const SERVER_INSTRUCTIONS = `agentdeck — local QA orchestrator + ${TOOL_COUNT} MCP tools for exhaustive
 multi-persona test campaigns following the unified 9-phase methodology.
 Web UI: http://127.0.0.1:3000
 
@@ -67,7 +85,7 @@ section ∈ {overview, principles, tooling, communication, pre-start, personas,
 phase-0..7, phase-9, conventions, templates, troubleshooting, metrics, full}.`;
 
 const server = new Server(
-  { name: 'agentdeck', version: '0.0.1' },
+  { name: 'agentdeck', version: MCP_PACKAGE_VERSION },
   { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS },
 );
 const proxy = new ProxyClient();

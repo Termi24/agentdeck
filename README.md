@@ -9,14 +9,18 @@ Start a session from the browser, and agentdeck:
 - runs it via the Claude Agent SDK, reusing your local `claude` CLI credentials (no API key needed),
 - streams every token of **thinking** and **output** into a dedicated panel per agent,
 - detects every `Task` subagent Claude spawns and opens a new tab for it automatically,
-- exposes **31 MCP tools** to the agents so they can collaborate and test end-to-end:
+- exposes **47 MCP tools** to the agents so they can collaborate and test end-to-end (full list in `packages/mcp/src/tools.ts`):
   - channel & docs: `post_to_channel`, `read_channel`, `wait_for_channel`, `publish_doc`
   - sandbox: `sandbox_{write,read,exec}`, `diff_exec`
   - procedures: `list_procedures`, `run_test_procedure`
-  - headless browser (Playwright): `browser_{navigate,snapshot,click,type,fill_form,wait_for,press_key,screenshot}`
-  - test reporting: `report_test_result`
+  - headless browser (Playwright): `browser_{navigate,snapshot,click,type,fill_form,wait_for,press_key,screenshot,new_context,dispose_context}`
+  - test reporting: `report_test_result`, `validate_claim`, `validate_claims_bulk`
+  - cartography: `api_inventory`, `schema_inventory`, `events_inventory`, `mcp_tools_inventory`, `react_hooks_inventory`
+  - methodology + campaigns: `read_methodology`, `start_qa_campaign`, `record_campaign_metric`, `submit_campaign_retrospective`, `end_campaign`
   - persistence: `project_memory_{read,write}`, `secrets_get`
-  - coordination: `send_direct`, `read_direct`, `await_user_input`, `request_agent_cancel`, `check_cancellation`,
+  - coordination: `send_direct`, `read_direct`, `await_user_input`, `request_agent_cancel`, `check_cancellation`
+  - identity + sub-agent registration: `set_agent_identity`, `spawn_agent`, `stop_agent`
+  - task planning: `task_plan`, `task_update_progress`, `task_complete`,
 - renders everything in a tiling workspace (`dockview-react`): agent tree + per-agent tabs + 9 fixed tabs (Channel, Docs, Sandbox, Procedures, Results, Browser, Memory, Secrets, plus per-subagent DM).
 
 ## Quick start (Windows)
@@ -33,7 +37,7 @@ Alternative: `start.cmd` (the bash-style launcher) still works if you prefer wat
 
 ## Bridge into your local `claude` CLI
 
-Make every `claude` CLI session use the 27 agentdeck tools:
+Make every `claude` CLI session use the 47 agentdeck tools:
 
 1. Double-click `install-claude.cmd` (runs `scripts/install-claude.mjs`). It builds `packages/mcp/dist/index.js`, registers `mcpServers.agentdeck` in `%USERPROFILE%\.claude\settings.json`, and pre-approves all `mcp__agentdeck__*` tools so they never prompt for permission.
 2. Keep `start.cmd` running (agentdeck proxy must be up on port 4317).

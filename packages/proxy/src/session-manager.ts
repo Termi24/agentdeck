@@ -181,7 +181,10 @@ async function runSession(args: {
         // every tool the MCP server exposes must be pre-approved here,
         // otherwise web-UI-launched SDK orchestrators get a permission
         // prompt mid-run that will never be answered (headless SDK).
-        // Last sync: 2026-04-26 (42 tools, v0.0.4).
+        // Last sync: 2026-04-26 (47 tools, v0.0.7). The MCP server now
+        // derives the count dynamically from TOOL_DEFINITIONS.length;
+        // this array stays manual because the SDK's allowedTools must be
+        // a literal at session-start time.
         allowedTools: [
           'mcp__agentdeck__list_procedures',
           'mcp__agentdeck__run_test_procedure',
