@@ -95,13 +95,34 @@ the first real campaign (IndusForge, eyeot ERP, 2026-04):
 
 Four runbooks compose these into complete campaigns:
 - `procedures/exhaustive-crud-test.md` — full CRUD matrix, zero-omission.
-- `procedures/isolated-ui-smoke.md` — parallel persona UI without contamination.
+- `procedures/isolated-ui-smoke.md` — parallel persona UI without contamination. **Default Phase 4 runbook** — auto-attached to `read_methodology({section:'phase-4' | 'principles'})` since v0.0.7.
 - `procedures/rbac-probe.md` — privilege matrix audit (allow-should-deny + deny-should-allow).
 - `procedures/claim-validator.md` — background triage of sub-agent bug reports.
 
 Before pointing agentdeck at a new SaaS, work through
 `procedures/SAAS-PREREQS.md` — skipping any item on that checklist is
 the #1 reason a campaign burns its first hour on environmental friction.
+
+### Principe 10 gate — UI-only en Phase 4 (v0.0.7+)
+
+Phase 4 personas must drive the target SaaS through `browser_*` tools
+only — `validate_claim`, `fetch()` from console, `curl` are forbidden as
+the primary interaction path (allowed only for Phase 1 cartographie and
+Phase 5 claim-validator). `end_campaign` enforces this at clôture:
+
+- For each non-orchestrator sub-agent (parentAgentId not null, role not in
+  `{orchestrator, root, bridge, claim-validator, skill}`), it computes
+  `uiCoverageRatio = browser_* / (browser_* + validate_claim + sandbox_exec(curl))`.
+- Below `0.5` ratio (with ≥ 5 relevant tool calls) → HTTP 422
+  `ui_coverage_violation` unless `retrospective.toolingFeedback` carries an
+  explicit `UI-EXEMPT: <agent name>: <reason>` line per offender.
+- Between `0.5` and `0.7` → soft warning surfaced in the end_campaign
+  response (`uiCoverage.warnings`).
+- Above `0.7` → silent pass.
+
+Backend-only audits (rest-auditor, schema-auditor, perf-auditor on
+agentdeck itself) ship with a blanket waiver in their orchestrator
+templates so the gate doesn't false-positive.
 
 ## Claude CLI bridge
 

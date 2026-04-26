@@ -113,6 +113,8 @@ Vérifier que la réponse contient `isolated: true`. Si non, STOP.
 
 **Violation typique.** Lancer 3 sub-agents Playwright MCP dans le même message sans spécifier de context. Ils **partagent** le contexte par défaut.
 
+> **Couplage avec Principe 10.** Le BrowserContext isolé n'a de sens que si le persona *utilise* le navigateur. Tout persona qui passe par `fetch()` / `validate_claim` invalide à la fois §1 et §10 — voir gate end_campaign.
+
 ### Principe 2 — Cartographie avant test
 
 **Règle.** Avant de tester un module, lister **exhaustivement** ses endpoints et ses pages. Pas d'exploration pendant le test lui-même.
@@ -260,6 +262,41 @@ Si la vérif échoue → stop, investiguer avant de paralléliser.
 - **2-3 semaines** : nécessaire pour app multi-département (≥ 8 personas), cycles trimestriels (clôture finance, paie, audit), ou vérification de processus longue durée (onboarding client, recouvrement).
 
 **Violation typique.** Démarrer Phase 4 avec une simple liste de "8 personas et leurs pages" sans calendrier. Résultat : tous les agents tapent en parallèle au J0, créent des objets sans dépendance temporelle, et les bugs de séquencement (un objet créé tôt qui devrait bloquer une action tardive) restent invisibles. C'est exactement le manque qui a fait passer 12 MISS sous le radar lors de la première semaine eyeot.
+
+---
+
+### Principe 10 — UI-only en Phase 4 (le persona se comporte comme un humain)
+
+**Règle.** En **Phase 4 — test métier**, chaque persona n'a le droit d'interagir avec l'application cible **que** via les outils navigateur (`browser_navigate`, `browser_click`, `browser_type`, `browser_fill_form`, `browser_wait_for`, `browser_snapshot`, `browser_screenshot`). Les appels HTTP directs (`validate_claim`, `fetch()` console, `curl`, scripts `requests`) sont **interdits comme chemin primaire** et autorisés **uniquement** dans deux contextes nominalement définis :
+1. **Phase 1 (cartographie)** : `api_inventory` + spot-checks `validate_claim` pour valider l'inventaire.
+2. **Phase 5 (claim-validator)** : un sub-agent dédié re-vérifie un bug rapporté par un persona via un fetch server-side. C'est lui, et lui seul, qui a le droit de bypass l'UI — et son rôle est de produire la *contre-preuve*, jamais le test initial.
+
+**Pourquoi.**
+1. **Les frictions UX ne sont vues que par l'UI.** Un endpoint `POST /tickets` qui répond 200 ne dit rien sur le formulaire qui prend 3 clics, perd le focus après la 1ère erreur de validation, ou affiche un toast de succès qui disparaît avant que l'utilisateur ait fini de lire. Un agent qui passe par `fetch()` rate **100 %** de cette catégorie de bug — qui est précisément ce que les utilisateurs rapportent en production.
+2. **Les bugs front (état Zustand bloqué, race re-render, navigation cassée) sont indétectables sans navigateur.** La campagne IndusForge a vu 7 bugs critiques détectés UNIQUEMENT parce qu'un persona a cliqué « Sauvegarder » deux fois et que la 2ᵉ requête est partie avec l'ancien id ; aucun test API direct ne reproduit ça.
+3. **Les shortcuts API rendent les rapports incomparables d'une campagne à l'autre.** Si Damien teste `POST /tickets` via `fetch()` semaine 1 puis via UI semaine 2, le delta « 12 bugs vs 19 bugs » ne dit rien sur le code — il dit juste que la couverture a changé. Imposer le canal UI **stabilise la base de comparaison**.
+
+**Comment (avec agentdeck).**
+- Premier appel de chaque persona : `browser_new_context({reset: true})` (déjà imposé par §1).
+- Login : `browser_navigate(/sign-in)` → `browser_fill_form({email, password})` → `browser_click(submit)` → `browser_wait_for(<dashboard marker>)`. **Pas** de POST direct sur `/auth/login`, même si le brief contient un bearer token.
+- Toutes les actions métier (créer ticket, déplacer Kanban, valider devis…) passent par les boutons et formulaires réels.
+- Pour chaque bug détecté : capture `browser_screenshot` avant + après l'état problématique, puis `report_test_result(evidence: { screenshot_id })`.
+- Si un persona doit **vérifier** un comportement backend (ex : « je vois le ticket dans la liste, mais est-il vraiment persisté ? »), il appelle `request_validation` à un sous-agent claim-validator séparé, lequel exécute le `validate_claim`. Le persona lui-même ne touche jamais à l'API.
+
+**Comment (sans agentdeck).**
+Playwright CLI avec un script par persona, le navigateur reste ouvert tout du long. Mêmes règles : pas de `requests.post` dans le code de persona, déléguer la vérification backend à un script `verify_<bug>.py` séparé.
+
+**Seuils mesurables (gate à end_campaign).**
+- `uiCoverageRatio = browser_* calls / (browser_* + validate_claim + sandbox_exec(curl)) calls`, calculé par persona Phase 4.
+- **≥ 70 %** : passe.
+- **50 % – 70 %** : warning, la rétro doit expliquer pourquoi (module API-only documenté ? bug Playwright bloquant ?).
+- **< 50 %** : `end_campaign` refuse tant que le `submit_campaign_retrospective` ne contient pas un waiver explicite (`UI-EXEMPT: <persona>: <raison>`).
+
+Le calcul exclut les agents au rôle `orchestrator`, `claim-validator`, ou tout agent dont le `parentAgentId IS NULL` (root SDK / bridge). Ces rôles n'ont pas vocation à tester en Phase 4.
+
+**Violation typique.** « Pour aller plus vite je login via API et je teste les endpoints en `fetch()` après. » Résultat : le rapport ne mentionne aucune friction UX, le client lit le rapport, déploie, et ses utilisateurs réels rencontrent immédiatement les 5 bugs front que l'équipe QA a manqués. C'est exactement le scénario qu'a vécu eyeot ERP avant l'introduction de ce principe (campagne IndusForge avait 0 % de coverage UI sur le module de facturation, 4 bugs UI majeurs en production).
+
+**Procédure par défaut.** En Phase 4, charger systématiquement `procedures/isolated-ui-smoke.md` comme runbook de référence. Sa section « Steps » et son « Why not reuse the session default context? » couvrent à 90 % le quotidien d'un persona.
 
 ---
 
@@ -1611,36 +1648,41 @@ Routine de chaque persona (dans l'ordre) :
 
 1. **Init** : `browser_new_context({reset: true})`, vérifier isolation.
 2. **Lecture** : channel récent (20 derniers messages), mémoire projet (fixtures créées).
-3. **Login** : avec les credentials du brief, via UI (préférable pour voir les frictions login) ou via API direct si UI est flaky.
+3. **Login** : avec les credentials du brief, **uniquement via UI** (`browser_navigate(/sign-in)` puis `browser_fill_form` puis `browser_click`). Le login est lui-même un test : un formulaire de login flaky est un bug à reporter, pas une raison de bypasser. Si l'UI est *vraiment* cassée au point d'empêcher tout login, **stopper la campagne** et l'annoncer à l'orchestrator (`post_to_channel`) — c'est un bloquant Phase 0, pas une excuse pour passer en API.
 4. **Cartographie perso** : parcourir toutes les pages du périmètre une fois pour "voir le terrain", prendre captures.
 5. **Parcours métier P1-P5** : exécuter chaque parcours, noter frictions/bugs/MISS.
-6. **Exhaustivité résiduelle** : pour chaque endpoint de la carto non encore touché, faire un test minimal (via UI si le bouton existe, via `fetch()` depuis la console sinon).
+6. **Exhaustivité résiduelle** : pour chaque endpoint de la carto non encore touché, faire un test minimal **via UI** (clic, soumission, navigation). Si un endpoint n'a aucun chemin UI (ex: webhook interne, route admin sans bouton), c'est un MISS à reporter à l'orchestrator pour traitement séparé en Phase 5 — **pas** un prétexte pour `fetch()`.
 7. **Handoffs** : quand un autre persona attend une donnée, la créer et `post_to_channel` avec `type: "handoff"`.
-8. **Cleanup** : supprimer tous les `TEST-QA-<ID>-*` créés.
+8. **Cleanup** : supprimer tous les `TEST-QA-<ID>-*` créés via UI (Principe 7). Tout ce qui ne peut pas être supprimé via UI = MISS "pas de bouton delete".
 9. **Rapport final** : écrire `reports/04-<persona>.md` en 9 sections (§16).
 10. **`report_test_result`** pour chaque BUG/UX/MISS (si agentdeck) OU append dans `findings.jsonl` (mode dégradé).
+
+> **Rappel Principe 10.** Aucun `fetch()`, `validate_claim`, `curl` n'est autorisé dans le mandat persona. Les vérifications backend sont déléguées au sub-agent claim-validator (Phase 5). `end_campaign` calcule le ratio UI / API et bloque la clôture si < 50 %.
 
 ### 10.7 Astuce gain de temps : "bearer token reuse"
 
 Dans le mandat de chaque persona, ajouter :
 
 ```markdown
-## Astuce performance
+## Règle UI-only (Principe 10)
 
-Pour les endpoints purement API (qui ne nécessitent pas l'UI), après login UI :
-1. Ouvre DevTools > Application > Cookies, note le access_token
-2. Utilise `fetch()` depuis la console :
-   ```js
-   const token = "eyJhbGc...";
-   const r = await fetch('/api/v1/.../...', {
-     headers: { 'Authorization': `Bearer ${token}` }
-   });
-   console.log(r.status, await r.json());
-   ```
-Cela te permet de couvrir 50+ endpoints en 15 min au lieu de 1 h via UI seule.
+Tu es un **utilisateur humain**. Tu cliques, tu remplis, tu attends que la
+page se mette à jour. Tu n'utilises **JAMAIS** `fetch()`, `curl`,
+`validate_claim`, ni aucun appel HTTP direct depuis ton mandat. Pas même
+"juste pour gagner du temps sur les endpoints purement API".
 
-Mais : tout endpoint qui a un formulaire UI doit aussi être testé via UI
-(pour capter les frictions front-end que `fetch()` ne voit pas).
+Pourquoi : 100 % des frictions UX (formulaire qui perd le focus, toast qui
+disparaît trop vite, état Zustand bloqué, double-clic qui crée deux
+ressources) ne sont visibles que via le navigateur. Skipper l'UI = manquer
+ces bugs. La campagne IndusForge a 7 bugs critiques découverts uniquement
+parce qu'un persona a vraiment cliqué.
+
+Si tu doutes d'un comportement backend : envoie un `send_direct` au sub-agent
+**claim-validator** qui, lui, est habilité à vérifier l'API. Reste dans ton
+rôle d'utilisateur final.
+
+Le script `end_campaign` calcule `uiCoverageRatio = browser_* / (browser_* + API direct)`
+par persona. Si < 50 %, la campagne est refusée à la clôture.
 ```
 
 ### 10.8 Sorties produites

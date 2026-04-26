@@ -71,6 +71,41 @@ function sliceSection(full: string, section: string): string {
   return full.slice(startIdx, endIdx).trimEnd();
 }
 
+// Methodology Principe 10 — every phase-4 / principles fetch ships with the
+// canonical UI-only runbook glued to the response so orchestrators discover it
+// without a second tool call.
+const UI_DEFAULT_PROCEDURE_PATH = 'procedures/isolated-ui-smoke.md';
+
+async function readUiDefaultProcedure(repoRoot: string): Promise<string | null> {
+  try {
+    const body = await readFile(resolve(repoRoot, UI_DEFAULT_PROCEDURE_PATH), 'utf8');
+    return body.trim();
+  } catch {
+    return null;
+  }
+}
+
+function attachUiProcedure(content: string, runbook: string | null): string {
+  if (!runbook) return content;
+  const banner = [
+    '',
+    '---',
+    '',
+    '## Procédure par défaut Phase 4 (Principe 10 — UI-only)',
+    '',
+    "Cette procédure est le runbook canonique pour tout persona Phase 4. Elle est",
+    "annexée automatiquement à `read_methodology({section:'phase-4'})` et",
+    "`read_methodology({section:'principles'})` afin que les orchestrators",
+    "n'aient pas à la chercher. **Ne pas dévier sans waiver explicite** dans la",
+    "rétro (`UI-EXEMPT: <persona>: <raison>`).",
+    '',
+    `Source : \`${UI_DEFAULT_PROCEDURE_PATH}\``,
+    '',
+    runbook,
+  ].join('\n');
+  return content + banner;
+}
+
 export const registerMethodologyRoutes: FastifyPluginAsync = async (app) => {
   const path = resolve(config.REPO_ROOT, 'process', '10-methodologie-unifiee.md');
 
@@ -85,7 +120,11 @@ export const registerMethodologyRoutes: FastifyPluginAsync = async (app) => {
         .code(404)
         .send({ error: 'methodology file not found', path, detail: String(err) });
     }
-    const content = sliceSection(full, parsed.data.section);
+    let content = sliceSection(full, parsed.data.section);
+    if (parsed.data.section === 'phase-4' || parsed.data.section === 'principles') {
+      const runbook = await readUiDefaultProcedure(config.REPO_ROOT);
+      content = attachUiProcedure(content, runbook);
+    }
     return {
       section: parsed.data.section,
       path,
