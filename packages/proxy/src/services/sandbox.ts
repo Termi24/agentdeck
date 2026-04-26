@@ -77,9 +77,15 @@ export async function sandboxExec(
 
   const started = Date.now();
   return new Promise<ExecResult>((resolveP) => {
-    const shell = process.platform === 'win32' ? 'powershell.exe' : 'sh';
-    const shellArgs = process.platform === 'win32' ? ['-NoProfile', '-NonInteractive', '-Command', command] : ['-c', command];
-    const child = spawn(shell, shellArgs, { cwd: sandboxRoot });
+    // Use `shell: true` so Node delegates argument quoting + PATH lookup
+    // to the platform's default shell (cmd.exe on Windows, sh on Unix).
+    // Direct `spawn('powershell.exe', …)` was failing on Windows with
+    // exitCode 0xC0000142 / STATUS_DLL_INIT_FAILED when the proxy was
+    // launched without inheriting %SystemRoot% — going through cmd.exe
+    // /s /c rebuilds the env from the registry and resolves DLLs
+    // correctly. Inputs come from a trusted local MCP caller, so the
+    // increased shell-injection surface is acceptable.
+    const child = spawn(command, [], { cwd: sandboxRoot, shell: true, env: process.env });
     let stdout = '';
     let stderr = '';
     let timedOut = false;

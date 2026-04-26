@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
+import { errors as pwErrors } from 'playwright';
 import {
   disposeAgentContext,
   getPage,
@@ -11,6 +12,19 @@ import {
 } from '../services/browser-manager.js';
 import type { EventBus } from '../event-bus.js';
 import { appendEvent } from '../persistence.js';
+
+/**
+ * Playwright raises `TimeoutError` for both selector misses and waitFor*
+ * deadlines. Treat these as caller errors (the element/state really wasn't
+ * there in the allotted window), not server errors — without this branch
+ * every "selector not found" leaked as an HTTP 500 with a 30 s wall-clock,
+ * which made probes look like proxy bugs in the agentdeck UX feedback.
+ */
+function isPlaywrightTimeout(err: unknown): boolean {
+  if (err instanceof pwErrors.TimeoutError) return true;
+  if (err instanceof Error && err.name === 'TimeoutError') return true;
+  return false;
+}
 
 /**
  * Strip Playwright stack frames, ANSI escape sequences, and `file://` paths
@@ -35,13 +49,31 @@ function sanitizePlaywrightError(err: unknown): string {
 
 const AgentIdField = z.string().min(1).optional();
 
+// Default short timeout for "is the element here right now?" probes.
+// Playwright's own default is 30 s, which is fine when you're driving a
+// known UI but punishingly long for selector-existence checks (cookie
+// banners, optional inputs, conditional buttons). Agents can override
+// when they really mean "wait up to N seconds for this to appear".
+const DEFAULT_LOCATOR_TIMEOUT_MS = 3_000;
+
 const NavBody = z.object({ url: z.string().url(), agentId: AgentIdField });
 const SnapQuery = z.object({ agentId: AgentIdField });
-const ClickBody = z.object({ selector: z.string().min(1), agentId: AgentIdField });
-const TypeBody = z.object({ selector: z.string().min(1), text: z.string(), pressEnter: z.boolean().optional(), agentId: AgentIdField });
+const ClickBody = z.object({
+  selector: z.string().min(1),
+  agentId: AgentIdField,
+  timeoutMs: z.coerce.number().int().positive().max(60_000).default(DEFAULT_LOCATOR_TIMEOUT_MS),
+});
+const TypeBody = z.object({
+  selector: z.string().min(1),
+  text: z.string(),
+  pressEnter: z.boolean().optional(),
+  agentId: AgentIdField,
+  timeoutMs: z.coerce.number().int().positive().max(60_000).default(DEFAULT_LOCATOR_TIMEOUT_MS),
+});
 const FillBody = z.object({
   fields: z.array(z.object({ selector: z.string().min(1), value: z.string() })).min(1),
   agentId: AgentIdField,
+  timeoutMs: z.coerce.number().int().positive().max(60_000).default(DEFAULT_LOCATOR_TIMEOUT_MS),
 });
 const WaitBody = z.object({
   text: z.string().optional(),
@@ -94,9 +126,17 @@ export const registerBrowserRoutes: FastifyPluginAsync<{ eventBus: EventBus }> =
     if (!parsed.success) return reply.badRequest(parsed.error.message);
     try {
       const page = await getPage(sessionId, parsed.data.agentId);
-      await page.click(parsed.data.selector);
+      await page.click(parsed.data.selector, { timeout: parsed.data.timeoutMs });
       return { ok: true };
     } catch (err) {
+      if (isPlaywrightTimeout(err)) {
+        return reply.code(404).send({
+          ok: false,
+          error: 'element not found',
+          selector: parsed.data.selector,
+          timeoutMs: parsed.data.timeoutMs,
+        });
+      }
       return reply.internalServerError(sanitizePlaywrightError(err));
     }
   });
@@ -107,10 +147,18 @@ export const registerBrowserRoutes: FastifyPluginAsync<{ eventBus: EventBus }> =
     if (!parsed.success) return reply.badRequest(parsed.error.message);
     try {
       const page = await getPage(sessionId, parsed.data.agentId);
-      await page.fill(parsed.data.selector, parsed.data.text);
-      if (parsed.data.pressEnter) await page.press(parsed.data.selector, 'Enter');
+      await page.fill(parsed.data.selector, parsed.data.text, { timeout: parsed.data.timeoutMs });
+      if (parsed.data.pressEnter) await page.press(parsed.data.selector, 'Enter', { timeout: parsed.data.timeoutMs });
       return { ok: true };
     } catch (err) {
+      if (isPlaywrightTimeout(err)) {
+        return reply.code(404).send({
+          ok: false,
+          error: 'element not found',
+          selector: parsed.data.selector,
+          timeoutMs: parsed.data.timeoutMs,
+        });
+      }
       return reply.internalServerError(sanitizePlaywrightError(err));
     }
   });
@@ -121,8 +169,26 @@ export const registerBrowserRoutes: FastifyPluginAsync<{ eventBus: EventBus }> =
     if (!parsed.success) return reply.badRequest(parsed.error.message);
     try {
       const page = await getPage(sessionId, parsed.data.agentId);
-      for (const f of parsed.data.fields) await page.fill(f.selector, f.value);
-      return { ok: true, filled: parsed.data.fields.length };
+      let filled = 0;
+      for (const f of parsed.data.fields) {
+        try {
+          await page.fill(f.selector, f.value, { timeout: parsed.data.timeoutMs });
+          filled++;
+        } catch (err) {
+          if (isPlaywrightTimeout(err)) {
+            return reply.code(404).send({
+              ok: false,
+              error: 'element not found',
+              selector: f.selector,
+              filled,
+              total: parsed.data.fields.length,
+              timeoutMs: parsed.data.timeoutMs,
+            });
+          }
+          throw err;
+        }
+      }
+      return { ok: true, filled };
     } catch (err) {
       return reply.internalServerError(sanitizePlaywrightError(err));
     }
@@ -132,16 +198,30 @@ export const registerBrowserRoutes: FastifyPluginAsync<{ eventBus: EventBus }> =
     const { id: sessionId } = request.params as { id: string };
     const parsed = WaitBody.safeParse(request.body);
     if (!parsed.success) return reply.badRequest(parsed.error.message);
+    const { text, textGone, selector, timeoutMs } = parsed.data;
+    if (!selector && !text && !textGone) {
+      return reply.badRequest('provide one of: selector, text, textGone');
+    }
     try {
       const page = await getPage(sessionId, parsed.data.agentId);
-      const { text, textGone, selector, timeoutMs } = parsed.data;
       type DomWindow = { document: { body: { innerText: string } } };
       if (selector) await page.waitForSelector(selector, { timeout: timeoutMs });
       else if (text) await page.waitForFunction((t: string) => (globalThis as unknown as DomWindow).document.body.innerText.includes(t), text, { timeout: timeoutMs });
       else if (textGone) await page.waitForFunction((t: string) => !(globalThis as unknown as DomWindow).document.body.innerText.includes(t), textGone, { timeout: timeoutMs });
-      else return reply.badRequest('provide one of: selector, text, textGone');
-      return { ok: true };
+      return { ok: true, satisfied: true };
     } catch (err) {
+      if (isPlaywrightTimeout(err)) {
+        // Returning 200 here (not 4xx) is intentional: a wait_for that
+        // resolves "no, the condition was never met" is a normal probe
+        // outcome, not a caller error. Agents branch on `satisfied`.
+        return {
+          ok: true,
+          satisfied: false,
+          reason: 'timeout',
+          timeoutMs,
+          waitedFor: selector ? { selector } : text ? { text } : { textGone },
+        };
+      }
       return reply.internalServerError(sanitizePlaywrightError(err));
     }
   });

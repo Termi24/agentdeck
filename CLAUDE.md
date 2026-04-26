@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Product
 
-**agentdeck** — a local desktop app that observes Claude Agent SDK orchestrators and Claude CLI bridges in real time, AND lets them drive a real headless browser to test SaaS / web apps. 37 MCP tools wire the agents into agentdeck's own primitives (channel, docs, sandbox, browser, tests, memory, secrets, coordination, per-agent browser isolation, claim validation, API inventory, methodology, campaign tracking, agent identity). The web UI is a **dashboard-first hub**: `/` is a multi-session supervision panel showing every live MCP connection with global + per-session KPIs, and `/sessions/[id]` is a single-session dashboard (agent tree + unified activity feed + running tool calls + detail tabs). A classic dockview tiling workspace is still available at `/sessions/[id]/dockview` for power users.
+**agentdeck** — a local desktop app that observes Claude Agent SDK orchestrators and Claude CLI bridges in real time, AND lets them drive a real headless browser to test SaaS / web apps. 44 MCP tools wire the agents into agentdeck's own primitives (channel, docs, sandbox, browser, tests, memory, secrets, coordination, per-agent browser isolation, claim validation, API inventory, methodology, campaign tracking, agent identity, sub-agent registration). The web UI is a **dashboard-first hub**: `/` is a multi-session supervision panel showing every live MCP connection with global + per-session KPIs, and `/sessions/[id]` is a single-session dashboard (agent tree + unified activity feed + running tool calls + detail tabs). A classic dockview tiling workspace is still available at `/sessions/[id]/dockview` for power users.
 
 User-facing language is French (user: Amine). Internal code, logs, and technical documentation are in English.
 
@@ -12,7 +12,7 @@ User-facing language is French (user: Amine). Internal code, logs, and technical
 
 Four moving parts, all TypeScript, ESM:
 
-1. **`packages/proxy`** — Node 22 + Fastify 5 + Socket.IO 4 + `@anthropic-ai/claude-agent-sdk` + **Playwright 1.59**. Receives `POST /sessions`, runs a Claude SDK session with `includePartialMessages: true`, `permissionMode: 'bypassPermissions'`, and 37 `allowedTools` pre-approving the MCP tool surface. REST endpoints: sessions CRUD + stats + heartbeat, agents (list / spawn / stop), tool-calls, channel, docs, sandbox, procedures, test-results, project-memory, dm, secrets (AES-256-GCM), user-input (long-poll), agent-cancel, browser (navigate/click/type/wait/screenshot/…), exec-diff, test-tools (validate_claim, api_inventory).
+1. **`packages/proxy`** — Node 22 + Fastify 5 + Socket.IO 4 + `@anthropic-ai/claude-agent-sdk` + **Playwright 1.59**. Receives `POST /sessions`, runs a Claude SDK session with `includePartialMessages: true`, `permissionMode: 'bypassPermissions'`, and 44 `allowedTools` pre-approving the MCP tool surface. REST endpoints: sessions CRUD + stats + heartbeat, agents (list / spawn / stop), tool-calls, channel, docs, sandbox, procedures, test-results, project-memory, dm, secrets (AES-256-GCM), user-input (long-poll), agent-cancel, browser (navigate/click/type/wait/screenshot/…), exec-diff, test-tools (validate_claim, api_inventory).
 2. **`packages/mcp`** — MCP stdio server spawned by the SDK per session with `AGENTDECK_{SESSION,AGENT,PROJECT}_ID` + `AGENTDECK_PROXY_URL` in env. Each tool is an HTTP shim onto the proxy. In CLI-bridge mode, a 30 s heartbeat ping keeps the session alive in the hub; when the CLI dies, the proxy watchdog auto-finalizes the bridge session within ~90 s.
 3. **`packages/shared`** — 18-table Drizzle schema (sessions, agents, events, tool_calls, channel_messages, docs, procedures, test_results, project_memory, direct_messages, secrets, exec_runs, user_inputs, browser_screenshots, agent_cancel_requests, campaigns, campaign_metrics, campaign_retrospectives) + 20-type zod discriminated union of events. Zod 4 native `z.toJSONSchema()` for MCP tool input schemas.
 4. **`apps/web`** — Next.js 15 + React 19 + Tailwind 4 + shadcn/ui + `dockview-react`. Two primary routes:
@@ -105,20 +105,24 @@ the #1 reason a campaign burns its first hour on environmental friction.
 
 ## Claude CLI bridge
 
-`scripts/install-claude.mjs` (entrypoint: `install-claude.cmd`) writes `mcpServers.agentdeck` into `%USERPROFILE%\.claude\settings.json` and pre-approves the 37 `mcp__agentdeck__*` tools. Uninstall via `scripts/uninstall-claude.mjs`.
+`scripts/install-claude.mjs` (entrypoint: `install-claude.cmd`) writes `mcpServers.agentdeck` into `%USERPROFILE%\.claude\settings.json` and pre-approves the 44 `mcp__agentdeck__*` tools. Uninstall via `scripts/uninstall-claude.mjs`.
 
 In CLI mode, the MCP's `AGENTDECK_SESSION_ID` env var is absent. `ProxyClient.ensureReady()` lazily creates a **bridged session** (`POST /sessions { bridge: true }`) on the first tool call — the session exists only as a container for the Claude CLI's tool invocations; the proxy does **not** spawn a Claude Agent SDK `query()` for it (that's the key difference with sessions started from the web UI). On bootstrap, the MCP starts a 30 s heartbeat loop (`POST /sessions/:id/heartbeat`) that keeps the bridge session "running" in the hub; when the CLI dies, the timer stops with the process and the proxy watchdog finalizes the session within ~90 s (see **Bridge session lifecycle** in Critical invariants). The first tool result is prefixed with `[agentdeck] bridged session: http://127.0.0.1:3000/sessions/<id>` so the user can open the dashboard.
+
+**Bridge agent name** — defaults to `claude-cli` (was `unnamed-cli` historically, opaque). Two override paths: (a) set `AGENTDECK_SKILL_NAME=<my-skill>` in the MCP `env:` block of `~/.claude/settings.json` so the hub shows the skill name from boot with no extra call required; (b) call `mcp__agentdeck__set_agent_identity({name})` mid-session to rename a running bridge.
+
+**Sub-agent registration** — when a skill or orchestrator fans out work via Task() / multi-persona patterns, call `mcp__agentdeck__spawn_agent({name, role?, prompt?, parentAgentId?})` to register each sub-agent so it appears in the AgentTree with its own activity feed and tool-call counters. Pair with `mcp__agentdeck__stop_agent({agentId, status})` at end-of-run. Without this, the proxy sees only one noisy agent (the bridge root) doing everything.
 
 Pre-built `packages/mcp/dist/index.js` is required for CLI bridge because `claude` spawns the command without access to `tsx`. `pnpm --filter @agentdeck/mcp build` regenerates it.
 
 ## External orchestrator integration
 
-Any process that runs outside the Claude Agent SDK — a CLI with a multi-persona skill, a Python script, another SDK instance — can make its sub-agents visible in the hub by calling the agents-CRUD endpoints directly. This is the path to surface e.g. a `/crm-semaine-industrielle` skill's 8 sub-agents in the dashboard:
+Any process that runs outside the Claude Agent SDK — a CLI with a multi-persona skill, a Python script, another SDK instance — can make its sub-agents visible in the hub. From inside a Claude Code skill the simplest path is the MCP shims (`mcp__agentdeck__spawn_agent` + `mcp__agentdeck__stop_agent`); for a non-Claude orchestrator that has no MCP host, hit the REST endpoints directly:
 
-1. `POST /sessions { projectId, prompt, title, bridge:true, rootAgentName, rootAgentRole }` → create the session, get `{sessionId, rootAgentId}`.
-2. For each sub-agent: `POST /sessions/:id/agents { name, role, prompt, parentAgentId: rootAgentId }` → the `prompt` field is what the dashboard renders as the agent's **context/skill** in the Agent Detail side-sheet and the "Agents & context" tab.
+1. `POST /sessions { projectId, prompt, title, bridge:true, rootAgentName, rootAgentRole }` → create the session, get `{sessionId, rootAgentId}`. (MCP equivalent: automatic on first tool call.)
+2. For each sub-agent: `POST /sessions/:id/agents { name, role, prompt, parentAgentId: rootAgentId }` → the `prompt` field is what the dashboard renders as the agent's **context/skill** in the Agent Detail side-sheet and the "Agents & context" tab. (MCP: `spawn_agent({name, role?, prompt?, parentAgentId?})`.)
 3. Coordinate via `POST /sessions/:id/channel` (broadcast) and `POST /sessions/:id/dm` (private pairs). Both trigger live events consumed by the dashboard.
-4. At the end: `POST /sessions/:id/agents/:agentId/stop { status }` per sub-agent, then `POST /sessions/:id/cancel` to finalize the session.
+4. At the end: `POST /sessions/:id/agents/:agentId/stop { status }` per sub-agent (MCP: `stop_agent({agentId, status})`), then `POST /sessions/:id/cancel` to finalize the session.
 5. Heartbeat every 20–30 s via `POST /sessions/:id/heartbeat` for the duration of the run so the session stays "active" in the hub.
 
 The hub UI is **agnostic to the target product**: nothing is hardcoded about CRMs, ERPs, or any specific domain. Everything displayed (titles, roles, skill contents, DM pairs) comes from the data posted by the orchestrator. A reference example lives at `G:/eyeot/ERP/_team/agentdeck-test/run-multi-agent-demo.ts`.
@@ -130,4 +134,3 @@ The hub UI is **agnostic to the target product**: nothing is hardcoded about CRM
 ## Known open items
 
 - **Tauri 2 packaging** — deferred, requires Rust toolchain + MSI signing. Launcher is sufficient for local desktop use.
-- **`mcp__agentdeck__spawn_agent` tool** — deferred wrapper that would let a Claude CLI skill register its sub-agents from within the Claude session via MCP, instead of requiring the skill to shell out to the `POST /sessions/:id/agents` endpoint manually. Backend is already ready; only the MCP shim is missing.

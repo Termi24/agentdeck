@@ -1,6 +1,6 @@
 {
   "name": "agentdeck",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "private": true,
   "description": "Live observability workspace for Claude Agent SDK orchestrators and subagents.",
   "packageManager": "pnpm@9.12.0",

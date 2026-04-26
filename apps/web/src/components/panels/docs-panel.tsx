@@ -14,7 +14,7 @@ export function DocsPanel(_props: IDockviewPanelProps) {
   const paths = useMemo(() => {
     const map = new Map<string, { path: string; at: string }>();
     for (const ev of events) {
-      if (ev.type !== 'doc.published') continue;
+      if (ev.type !== 'doc.published' && ev.type !== 'doc.updated') continue;
       map.set(ev.path, { path: ev.path, at: ev.at });
     }
     return Array.from(map.values()).sort((a, b) => a.path.localeCompare(b.path));

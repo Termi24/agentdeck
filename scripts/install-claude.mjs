@@ -42,6 +42,9 @@ const TOOL_NAMES = [
   'schema_inventory', 'events_inventory', 'mcp_tools_inventory', 'react_hooks_inventory',
   'read_methodology', 'start_qa_campaign', 'record_campaign_metric',
   'submit_campaign_retrospective', 'end_campaign', 'set_agent_identity',
+  // Sub-agent registration shims (v0.0.5). Skills like /agentdeck-review
+  // call these to surface fan-out work in the AgentTree.
+  'spawn_agent', 'stop_agent',
 ];
 
 function log(msg) {

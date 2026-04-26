@@ -52,8 +52,17 @@ function SessionDashboard({ sessionId }: { sessionId: string }) {
         setSession(s);
         setAgents(a);
         setLoadState('found');
-      } catch {
-        /* proxy offline — stays on last snapshot */
+      } catch (err) {
+        // Differentiate "session was deleted" (Promise.all reject from a 404
+        // bubble or a 410 Gone, e.g. when listSessionAgents fires before
+        // getSession returns null) from generic network errors. The former
+        // needs to swap the dashboard to the SessionNotFound view so polling
+        // stops; the latter is a transient proxy outage where we keep the
+        // last snapshot.
+        const msg = err instanceof Error ? err.message : String(err);
+        if (/(404|410)/.test(msg)) {
+          setLoadState('missing');
+        }
       }
     },
     8_000,

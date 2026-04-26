@@ -4,10 +4,16 @@ import { and, eq } from 'drizzle-orm';
 import { projectMemory } from '@agentdeck/shared';
 import { getDb } from '../db.js';
 import type { EventBus } from '../event-bus.js';
+import { appendEvent } from '../persistence.js';
 
 const WriteBody = z.object({
   value: z.string(),
   updatedByAgentId: z.string().optional(),
+  // Required to append a row in `events` (which has session_id NOT NULL).
+  // Callers that don't have a session context (server-side bootstrap) can
+  // omit it — we just skip the appendEvent in that case so the project
+  // memory still gets written but the audit trail is project-only.
+  sessionId: z.string().uuid().optional(),
 });
 
 export const registerProjectMemoryRoutes: FastifyPluginAsync<{ eventBus: EventBus }> = async (app, { eventBus }) => {
@@ -56,7 +62,14 @@ export const registerProjectMemoryRoutes: FastifyPluginAsync<{ eventBus: EventBu
         })
         .run();
     }
-    eventBus.emit({ type: 'memory.updated', projectId, key, at });
+    const memEv = { type: 'memory.updated' as const, projectId, key, at, sessionId: parsed.data.sessionId ?? '' };
+    if (parsed.data.sessionId) {
+      // Persist to events only when the caller scoped the write to a session.
+      // Skipping the append on session-less writes preserves the
+      // events.session_id NOT NULL invariant (CLAUDE.md "Critical invariants").
+      appendEvent({ type: 'memory.updated', projectId, key, at, sessionId: parsed.data.sessionId });
+    }
+    eventBus.emit(memEv);
     return reply.code(existing ? 200 : 201).send({ projectId, key, at });
   });
 

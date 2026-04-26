@@ -398,7 +398,7 @@ export function appendEvent(event: AgentDeckEvent): number {
     .values({
       sessionId,
       agentId,
-      seq: 0,
+      seq: nextSeq(sessionId),
       type: event.type,
       payload: event,
     })

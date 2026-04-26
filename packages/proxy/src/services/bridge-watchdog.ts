@@ -23,8 +23,8 @@
  * to `events` every 30 s per active CLI.
  */
 import type { AgentDeckEvent } from '@agentdeck/shared';
-import { agents, sessions } from '@agentdeck/shared';
-import { and, eq, isNull } from 'drizzle-orm';
+import { sessions } from '@agentdeck/shared';
+import { and, eq } from 'drizzle-orm';
 import type { EventBus } from '../event-bus.js';
 import { getDb } from '../db.js';
 import { appendEvent, finalizeSession } from '../persistence.js';
@@ -95,12 +95,10 @@ function emitEnded(eventBus: EventBus, sessionId: string, nowIso: string): void 
 export function reapOrphanBridgesOnBoot(eventBus: EventBus): number {
   const db = getDb();
   const orphans = db
-    .select({ id: sessions.id, role: agents.role })
+    .select({ id: sessions.id })
     .from(sessions)
-    .leftJoin(agents, and(eq(agents.sessionId, sessions.id), isNull(agents.parentAgentId)))
-    .where(eq(sessions.status, 'running'))
-    .all()
-    .filter((r) => r.role === 'bridge');
+    .where(and(eq(sessions.status, 'running'), eq(sessions.isBridge, true)))
+    .all();
 
   const now = new Date().toISOString();
   for (const row of orphans) {

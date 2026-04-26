@@ -124,6 +124,38 @@ export const SetAgentIdentityInput = z.object({
   role: z.string().min(1).max(100).optional(),
 });
 
+// Sub-agent registration. CLI bridges (Claude Code, Cursor, custom CLIs) fan
+// out work via Task() / per-persona patterns that the proxy cannot observe
+// from the outside — without explicit registration, a 9-specialist run
+// appears as a single noisy agent in the AgentTree. spawn_agent fixes this
+// by letting the orchestrator declare each sub-agent up front.
+export const SpawnAgentInput = z.object({
+  name: z.string().min(1).max(100).describe(
+    'Display name for the sub-agent (e.g. "schema-auditor", "buyer-persona", "researcher").',
+  ),
+  role: z.string().min(1).max(100).optional().describe('Short role label rendered as a badge.'),
+  prompt: z
+    .string()
+    .default('')
+    .describe(
+      'The agent\'s context / skill / persona description. Rendered as the "context" tile in the Agents & context tab.',
+    ),
+  parentAgentId: z
+    .string()
+    .uuid()
+    .nullable()
+    .optional()
+    .describe('Parent agent UUID. Defaults to the calling agent (the bridge root).'),
+  model: z.string().optional(),
+});
+
+export const StopAgentInput = z.object({
+  agentId: z.string().uuid(),
+  status: z.enum(['completed', 'failed', 'cancelled']).default('completed'),
+  tokensIn: z.number().int().nonnegative().optional(),
+  tokensOut: z.number().int().nonnegative().optional(),
+});
+
 export const DiffExecInput = z.object({
   runIdA: z.string().min(1),
   runIdB: z.string().min(1),
@@ -379,6 +411,18 @@ export const TOOL_DEFINITIONS = [
     description:
       '[CALL EARLY] Replace the placeholder name of this bridged CLI session with a user-chosen identifier so it appears clearly in the hub. Ask the user "How should I be identified in the agentdeck hub?" before calling. Idempotent — safe to call again to update.',
     inputSchema: SetAgentIdentityInput,
+  },
+  {
+    name: 'spawn_agent',
+    description:
+      'Register a sub-agent in the current session so it shows up in the AgentTree with its own activity feed, tool-call count and DM thread. CLI-bridge orchestrators (Claude Code Task fan-out, Cursor multi-persona skills, custom Python runners) MUST call this before delegating work — the proxy has no other way to learn the sub-agent exists. Pass the returned agentId as `parentAgentId` of further nested agents to render the tree correctly. Pair with stop_agent at the end of each run.',
+    inputSchema: SpawnAgentInput,
+  },
+  {
+    name: 'stop_agent',
+    description:
+      'Mark a sub-agent (previously created via spawn_agent) as completed/failed/cancelled. The AgentTree status badge flips off the live "running" state and tokensIn/tokensOut totals roll up to the session KPI strip.',
+    inputSchema: StopAgentInput,
   },
 ] as const;
 

@@ -292,6 +292,7 @@ function foldEvents(events: ReadonlyArray<AgentDeckEvent>, filterAgentId: string
         });
         break;
       case 'doc.published':
+      case 'doc.updated':
         if (filterAgentId && e.byAgentId !== filterAgentId) break;
         items.push({
           key: `doc:${e.docId}:${e.at}`,
@@ -300,7 +301,7 @@ function foldEvents(events: ReadonlyArray<AgentDeckEvent>, filterAgentId: string
           icon: FileText,
           tone: 'emerald',
           fromAgentName: nameFor[e.byAgentId] ?? e.byAgentId.slice(0, 6),
-          title: `doc · ${e.path}`,
+          title: `${e.type === 'doc.updated' ? 'doc updated' : 'doc'} · ${e.path}`,
         });
         break;
       case 'test.result.reported':

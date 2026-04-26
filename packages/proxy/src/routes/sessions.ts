@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { and, eq } from 'drizzle-orm';
-import { agents } from '@agentdeck/shared';
+import { and, asc, eq, gt } from 'drizzle-orm';
+import { agents, events } from '@agentdeck/shared';
 import type { EventBus } from '../event-bus.js';
 import {
   appendEvent,
@@ -177,6 +177,34 @@ export const registerSessionRoutes: FastifyPluginAsync<{ eventBus: EventBus }> =
     return { toolCalls: listSessionToolCalls(id, parsed.data) };
   });
 
+  // Read the raw event log for a session, ordered by insertion id (ASC).
+  // Used by external orchestrators / replay tools that want to fold the
+  // stream offline without subscribing to Socket.IO. `afterId` enables
+  // long-poll-style cursors: pass the last seen id to fetch only new rows.
+  const EventsQuery = z.object({
+    limit: z.coerce.number().int().positive().max(5000).default(1000),
+    offset: z.coerce.number().int().min(0).default(0),
+    afterId: z.coerce.number().int().min(0).optional(),
+  });
+  app.get('/sessions/:id/events', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const parsed = EventsQuery.safeParse(request.query);
+    if (!parsed.success) return reply.badRequest(parsed.error.message);
+    const { limit, offset, afterId } = parsed.data;
+    const where = afterId !== undefined
+      ? and(eq(events.sessionId, id), gt(events.id, afterId))
+      : eq(events.sessionId, id);
+    const rows = getDb()
+      .select({ id: events.id, sessionId: events.sessionId, agentId: events.agentId, seq: events.seq, type: events.type, payload: events.payload, createdAt: events.createdAt })
+      .from(events)
+      .where(where)
+      .orderBy(asc(events.id))
+      .limit(limit)
+      .offset(offset)
+      .all();
+    return { events: rows, count: rows.length };
+  });
+
   app.post('/sessions', async (request, reply) => {
     const parsed = StartSessionBody.safeParse(request.body);
     if (!parsed.success) {
@@ -196,6 +224,16 @@ export const registerSessionRoutes: FastifyPluginAsync<{ eventBus: EventBus }> =
 
   app.post('/sessions/:id/heartbeat', async (request, reply) => {
     const { id } = request.params as { id: string };
+    // Inspect the row first: if the session has been reaped (status !=
+    // running and isBridge=true), tell the caller via 410 Gone so the CLI
+    // knows its bridge is dead and can decide whether to start a new one.
+    // bumpBridgeHeartbeat would otherwise silently revive the row (revival
+    // path) without the caller noticing the gap.
+    const row = getSession(id);
+    if (!row) return reply.notFound(`session ${id} not found`);
+    if (row.isBridge && row.status !== 'running' && row.status !== 'pending' && row.status !== 'waiting_tool') {
+      return reply.code(410).send({ error: 'session reaped', sessionId: id, status: row.status });
+    }
     bumpBridgeHeartbeat(id);
     return reply.code(204).send();
   });

@@ -12,7 +12,7 @@ import { TOOL_DEFINITIONS, type ToolName } from './tools.js';
 import { ProxyClient } from './proxy-client.js';
 import { config } from './config.js';
 
-const SERVER_INSTRUCTIONS = `agentdeck — local QA orchestrator + 36 MCP tools for exhaustive
+const SERVER_INSTRUCTIONS = `agentdeck — local QA orchestrator + 44 MCP tools for exhaustive
 multi-persona test campaigns following the unified 9-phase methodology.
 Web UI: http://127.0.0.1:3000
 
@@ -469,6 +469,25 @@ async function dispatch(name: ToolName, args: Record<string, unknown>): Promise<
       const role = typeof args.role === 'string' ? args.role : undefined;
       const r = await proxy.setAgentIdentity({ name, role });
       return `Agent identity updated: name="${r.name ?? '(unchanged)'}"${r.role ? `, role="${r.role}"` : ''}. You now appear as such in the agentdeck hub.`;
+    }
+    case 'spawn_agent': {
+      const r = await proxy.spawnAgent({
+        name: String(args.name ?? ''),
+        role: typeof args.role === 'string' ? args.role : undefined,
+        prompt: typeof args.prompt === 'string' ? args.prompt : '',
+        parentAgentId: typeof args.parentAgentId === 'string' ? args.parentAgentId : undefined,
+        model: typeof args.model === 'string' ? args.model : undefined,
+      });
+      return `Spawned sub-agent "${args.name}" (id ${r.agentId}). Pass parentAgentId="${r.agentId}" to further nested agents, and call stop_agent({agentId:"${r.agentId}"}) when the work is done.`;
+    }
+    case 'stop_agent': {
+      const r = await proxy.stopAgent({
+        agentId: String(args.agentId ?? ''),
+        status: (args.status as 'completed' | 'failed' | 'cancelled') ?? 'completed',
+        tokensIn: typeof args.tokensIn === 'number' ? args.tokensIn : undefined,
+        tokensOut: typeof args.tokensOut === 'number' ? args.tokensOut : undefined,
+      });
+      return `Sub-agent ${r.agentId} marked ${r.status}.`;
     }
     default: {
       const _exhaustive: never = name;

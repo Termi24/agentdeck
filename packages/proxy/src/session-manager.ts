@@ -234,6 +234,10 @@ async function runSession(args: {
           'mcp__agentdeck__submit_campaign_retrospective',
           'mcp__agentdeck__end_campaign',
           'mcp__agentdeck__set_agent_identity',
+          // Sub-agent registration shims (v0.0.5). Skills / orchestrators
+          // call these to surface fan-out work in the AgentTree.
+          'mcp__agentdeck__spawn_agent',
+          'mcp__agentdeck__stop_agent',
         ],
       },
     });

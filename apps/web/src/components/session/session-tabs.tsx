@@ -49,7 +49,9 @@ export function SessionTabs({ sessionId }: { sessionId: string }) {
     const t: TestResult[] = [];
     const m: ChannelMsg[] = [];
     for (const e of events as ReadonlyArray<AgentDeckEvent>) {
-      if (e.type === 'doc.published') {
+      if (e.type === 'doc.published' || e.type === 'doc.updated') {
+        // last-write-wins per path: republishing a doc keeps it as one entry
+        // in the tab listing but bumps `at` so the sort order surfaces it.
         d.set(e.path, { path: e.path, byAgentId: e.byAgentId, at: e.at });
       } else if (e.type === 'test.result.reported') {
         t.push({

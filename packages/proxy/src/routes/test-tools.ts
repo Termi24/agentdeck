@@ -17,7 +17,10 @@ const ValidateBody = z.object({
   // Coerce numeric strings ("200") to int — some MCP clients stringify integers
   // when bridging through their tool-call shim, and rejecting that form forces
   // the caller to fight their own runtime.
-  expectStatus: z.union([z.coerce.number().int(), z.enum(['2xx', '3xx', '4xx', '5xx'])]).optional(),
+  // NB: the enum branch MUST come first. z.coerce.number() is greedy — strings
+  // like "2xx" get coerced to NaN (passing the int() check on some zod versions)
+  // and shadow the enum, breaking the documented `expectStatus:'2xx'` contract.
+  expectStatus: z.union([z.enum(['2xx', '3xx', '4xx', '5xx']), z.coerce.number().int()]).optional(),
   expectJsonContains: z.record(z.string(), z.unknown()).optional(),
   expectBodyIncludes: z.string().optional(),
   timeoutMs: z.number().int().positive().max(120_000).optional(),

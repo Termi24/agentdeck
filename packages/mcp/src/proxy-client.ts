@@ -79,7 +79,11 @@ export class ProxyClient {
     this.webBaseUrl = `http://127.0.0.1:${this.spawnInfo.webPort}`;
 
     // Step 2: bootstrap the bridge session against the (now-reachable) proxy.
-    const title = `${config.AGENTDECK_AGENT_NAME} @ ${new Date().toISOString().slice(0, 19)}`;
+    // AGENTDECK_SKILL_NAME wins when set (skills inject it via the MCP env
+    // block), otherwise the agent fallback is used. The session title and the
+    // root agent name share the same source so the hub stays consistent.
+    const displayName = config.AGENTDECK_SKILL_NAME ?? config.AGENTDECK_AGENT_NAME;
+    const title = `${displayName} @ ${new Date().toISOString().slice(0, 19)}`;
     const prompt = 'External CLI session bridged via agentdeck MCP.';
     const res = await fetch(`${this.baseUrl}/sessions`, {
       method: 'POST',
@@ -89,8 +93,8 @@ export class ProxyClient {
         prompt,
         title,
         bridge: true,
-        rootAgentName: config.AGENTDECK_AGENT_NAME,
-        rootAgentRole: 'bridge',
+        rootAgentName: displayName,
+        rootAgentRole: config.AGENTDECK_SKILL_NAME ? 'skill' : 'bridge',
       }),
     });
     if (!res.ok) {
@@ -123,7 +127,8 @@ export class ProxyClient {
 
   currentAgentContext(): { agentId: string | null; agentName: string | null } | null {
     if (!this.agentId) return null;
-    return { agentId: this.agentId, agentName: config.AGENTDECK_AGENT_NAME ?? null };
+    const agentName = config.AGENTDECK_SKILL_NAME ?? config.AGENTDECK_AGENT_NAME ?? null;
+    return { agentId: this.agentId, agentName };
   }
 
   private requireSession(): string {
@@ -187,7 +192,7 @@ export class ProxyClient {
   postChannel(content: string) {
     return this.request<{ messageId: string; at: string }>('POST', `/sessions/${this.requireSession()}/channel`, {
       fromAgentId: this.requireAgent(),
-      fromAgentName: config.AGENTDECK_AGENT_NAME,
+      fromAgentName: config.AGENTDECK_SKILL_NAME ?? config.AGENTDECK_AGENT_NAME,
       content,
     });
   }
@@ -258,7 +263,7 @@ export class ProxyClient {
   sendDirect(toAgentId: string, content: string) {
     return this.request<{ messageId: string; at: string }>('POST', `/sessions/${this.requireSession()}/dm`, {
       fromAgentId: this.requireAgent(),
-      fromAgentName: config.AGENTDECK_AGENT_NAME,
+      fromAgentName: config.AGENTDECK_SKILL_NAME ?? config.AGENTDECK_AGENT_NAME,
       toAgentId,
       content,
     });
@@ -583,6 +588,43 @@ export class ProxyClient {
       'PATCH',
       `/sessions/${this.requireSession()}/agents/${encodeURIComponent(this.requireAgent())}`,
       input,
+    );
+  }
+
+  spawnAgent(input: {
+    name: string;
+    role?: string;
+    prompt?: string;
+    parentAgentId?: string | null;
+    model?: string;
+  }) {
+    return this.request<{ agentId: string }>('POST', `/sessions/${this.requireSession()}/agents`, {
+      // Default parent = the calling bridge root, so a flat `spawn_agent` call
+      // produces a one-level tree under the bridge agent. Callers can pass
+      // explicit parentAgentId to nest further or set null to register a
+      // sibling-of-root (rare, mostly for orchestrators-of-orchestrators).
+      parentAgentId: input.parentAgentId === undefined ? this.agentId : input.parentAgentId,
+      name: input.name,
+      role: input.role,
+      prompt: input.prompt ?? '',
+      model: input.model,
+    });
+  }
+
+  stopAgent(input: {
+    agentId: string;
+    status?: 'completed' | 'failed' | 'cancelled';
+    tokensIn?: number;
+    tokensOut?: number;
+  }) {
+    return this.request<{ agentId: string; status: string }>(
+      'POST',
+      `/sessions/${this.requireSession()}/agents/${encodeURIComponent(input.agentId)}/stop`,
+      {
+        status: input.status ?? 'completed',
+        tokensIn: input.tokensIn ?? 0,
+        tokensOut: input.tokensOut ?? 0,
+      },
     );
   }
 }

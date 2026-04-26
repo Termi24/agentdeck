@@ -32,6 +32,29 @@ export interface ValidateClaimInput {
   maxRetries?: number;
   /** Cap (ms) for each back-off wait between retries. Default 30_000. */
   maxBackoffMs?: number;
+  /**
+   * Whether to follow 3xx redirects. Default `true` (mirrors curl/fetch
+   * defaults). Set to `false` to make the first 3xx response the final
+   * one — useful for diagnosing trailing-slash 308s that strip
+   * Authorization headers (BUG-CARTOGRAPHIE-001 in the eyeot ERP run).
+   */
+  followRedirects?: boolean;
+  /** Cap on the number of redirect hops. Default 5. */
+  maxRedirects?: number;
+}
+
+export interface RedirectHop {
+  status: number;
+  /** The URL that produced this 3xx, BEFORE following. */
+  from: string;
+  /** The Location header value the server returned, after URL resolution. */
+  to: string;
+  /**
+   * True when the next hop will not carry the original Authorization header.
+   * Mirrors browser behavior: when the redirect leaves the original
+   * scheme+host (or any cross-origin hop), `Authorization` is dropped.
+   */
+  authorizationDropped: boolean;
 }
 
 export interface ValidateClaimResult {
@@ -48,6 +71,15 @@ export interface ValidateClaimResult {
   retries: number;
   /** Total time (ms) spent sleeping between retries. */
   backoffMs: number;
+  /**
+   * Ordered chain of 3xx hops actually traversed before reaching the
+   * final status. Empty when no redirect occurred. Always populated
+   * even when `followRedirects: false` (in which case the chain has at
+   * most one entry — the first 3xx that was NOT followed).
+   */
+  redirectChain: RedirectHop[];
+  /** Final URL after all redirects (or the request URL if none). */
+  finalUrl: string;
 }
 
 function getByPath(obj: unknown, path: string): unknown {
@@ -93,11 +125,39 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+/**
+ * Resolve a Location header value against the URL that issued the redirect.
+ * Handles relative ("/foo"), scheme-relative ("//host/foo") and absolute URLs.
+ */
+function resolveLocation(from: string, location: string): string {
+  try {
+    return new URL(location, from).toString();
+  } catch {
+    return location;
+  }
+}
+
+/**
+ * `Authorization` is dropped on cross-origin redirects (browser default,
+ * matches Fetch spec § "HTTP-redirect fetch"). Same scheme+host = kept.
+ */
+function authIsKept(from: string, to: string): boolean {
+  try {
+    const a = new URL(from);
+    const b = new URL(to);
+    return a.origin === b.origin;
+  } catch {
+    return false;
+  }
+}
+
 export async function validateClaim(input: ValidateClaimInput): Promise<ValidateClaimResult> {
   const started = Date.now();
   const timeoutMs = input.timeoutMs ?? 20_000;
   const maxRetries = Math.max(0, input.maxRetries ?? 3);
   const maxBackoffMs = Math.max(0, input.maxBackoffMs ?? 30_000);
+  const followRedirects = input.followRedirects ?? true;
+  const maxRedirects = Math.max(0, input.maxRedirects ?? 5);
 
   const hasBody = input.body !== undefined && input.method !== 'GET';
   const headers: Record<string, string> = { ...(input.headers ?? {}) };
@@ -114,46 +174,100 @@ export async function validateClaim(input: ValidateClaimInput): Promise<Validate
   let networkErr: string | null = null;
   let retries = 0;
   let backoffAccum = 0;
+  let currentUrl = input.url;
+  let currentMethod = input.method;
+  // We always issue requests with `redirect: 'manual'` so we can build a
+  // visible redirect chain (the original implementation followed silently
+  // and threw away the 308 hops, hiding BUG-CARTOGRAPHIE-001-style auth-
+  // dropping redirects from agents).
+  const redirectChain: RedirectHop[] = [];
 
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const ctl = new AbortController();
-    const to = setTimeout(() => ctl.abort(), timeoutMs);
+  for (let hop = 0; hop <= maxRedirects; hop++) {
+    res = null;
+    retries = 0;
 
-    try {
-      res = await fetch(input.url, {
-        method: input.method,
-        headers,
-        body: bodyStr,
-        signal: ctl.signal,
-      });
-    } catch (err) {
+    // Inner retry loop on 429 for this hop.
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const ctl = new AbortController();
+      const to = setTimeout(() => ctl.abort(), timeoutMs);
+
+      try {
+        res = await fetch(currentUrl, {
+          method: currentMethod,
+          headers,
+          body: bodyStr,
+          signal: ctl.signal,
+          redirect: 'manual',
+        });
+      } catch (err) {
+        clearTimeout(to);
+        networkErr = err instanceof Error ? err.message : String(err);
+        res = null;
+        break;
+      }
       clearTimeout(to);
-      networkErr = err instanceof Error ? err.message : String(err);
+
+      if (res.status !== 429 || attempt === maxRetries) break;
+
+      try {
+        await res.text();
+      } catch {
+        /* ignore */
+      }
+
+      const retryAfterMs = parseRetryAfter(res.headers.get('retry-after'));
+      const backoffMs =
+        retryAfterMs !== null
+          ? Math.min(retryAfterMs, maxBackoffMs)
+          : Math.min(maxBackoffMs, 1000 * 2 ** attempt);
+
+      retries++;
+      backoffAccum += backoffMs;
       res = null;
-      break;
+      if (backoffMs > 0) await sleep(backoffMs);
     }
-    clearTimeout(to);
 
-    // Only 429 triggers the retry path. Everything else is the agent's signal.
-    if (res.status !== 429 || attempt === maxRetries) break;
+    if (!res) break; // network error — propagated below.
 
-    // Drain the 429 body to release the socket before sleeping.
+    if (res.status < 300 || res.status >= 400) break; // terminal status.
+
+    const location = res.headers.get('location');
+    if (!location) break; // 3xx without Location — treat as terminal.
+
+    const nextUrl = resolveLocation(currentUrl, location);
+    const authKept = authIsKept(currentUrl, nextUrl);
+    redirectChain.push({
+      status: res.status,
+      from: currentUrl,
+      to: nextUrl,
+      authorizationDropped: !authKept && Object.keys(headers).some((k) => k.toLowerCase() === 'authorization'),
+    });
+
+    if (!followRedirects) break;
+    if (hop === maxRedirects) break;
+
+    // Drain the redirect body before reissuing.
     try {
       await res.text();
     } catch {
       /* ignore */
     }
 
-    const retryAfterMs = parseRetryAfter(res.headers.get('retry-after'));
-    const backoffMs =
-      retryAfterMs !== null
-        ? Math.min(retryAfterMs, maxBackoffMs)
-        : Math.min(maxBackoffMs, 1000 * 2 ** attempt);
+    // 301/302/303 on POST/PUT/etc historically downgrade to GET (browser
+    // behaviour). 307/308 preserve method + body.
+    if ((res.status === 301 || res.status === 302 || res.status === 303) && currentMethod !== 'GET') {
+      currentMethod = 'GET';
+    }
 
-    retries++;
-    backoffAccum += backoffMs;
-    res = null;
-    if (backoffMs > 0) await sleep(backoffMs);
+    // Strip Authorization on cross-origin hops to match browser behaviour
+    // and surface what the agent's curl/axios would have done.
+    if (!authKept) {
+      for (const k of Object.keys(headers)) {
+        if (k.toLowerCase() === 'authorization') delete headers[k];
+      }
+    }
+
+    currentUrl = nextUrl;
   }
 
   if (!res) {
@@ -169,6 +283,8 @@ export async function validateClaim(input: ValidateClaimInput): Promise<Validate
       contentType: null,
       retries,
       backoffMs: backoffAccum,
+      redirectChain,
+      finalUrl: currentUrl,
     };
   }
 
@@ -176,6 +292,15 @@ export async function validateClaim(input: ValidateClaimInput): Promise<Validate
   const text = await res.text();
   const sample = text.slice(0, 4_000);
   const mismatches: string[] = [];
+
+  if (redirectChain.some((h) => h.authorizationDropped)) {
+    mismatches.push(
+      `Authorization header was dropped on a cross-origin redirect (${redirectChain
+        .filter((h) => h.authorizationDropped)
+        .map((h) => `${h.status} ${h.from} → ${h.to}`)
+        .join(', ')}). The final response may show 401 because of this, not because the credentials are wrong.`,
+    );
+  }
 
   let statusMatches: boolean | null = null;
   if (input.expectStatus !== undefined) {
@@ -227,5 +352,7 @@ export async function validateClaim(input: ValidateClaimInput): Promise<Validate
     contentType,
     retries,
     backoffMs: backoffAccum,
+    redirectChain,
+    finalUrl: currentUrl,
   };
 }

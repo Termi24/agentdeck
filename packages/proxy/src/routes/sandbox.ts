@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { sandboxExec, sandboxRead, sandboxWrite } from '../services/sandbox.js';
+import { existsSync } from 'node:fs';
+import { sandboxExec, sandboxRead, sandboxWrite, resolveSandboxPath } from '../services/sandbox.js';
 import type { EventBus } from '../event-bus.js';
 import { appendEvent } from '../persistence.js';
 import { getDb } from '../db.js';
@@ -26,12 +27,23 @@ export const registerSandboxRoutes: FastifyPluginAsync<{ eventBus: EventBus }> =
     const parsed = WriteBody.safeParse(request.body);
     if (!parsed.success) return reply.badRequest(parsed.error.message);
     try {
+      // Detect file existence BEFORE the write so the event op accurately
+      // reflects create vs modify. Without this every write looked like a
+      // 'modify' even on first creation, which broke activity-feed
+      // reasoning ("did the agent overwrite or create?").
+      const existedBefore = (() => {
+        try {
+          return existsSync(resolveSandboxPath(sessionId, parsed.data.path));
+        } catch {
+          return false;
+        }
+      })();
       const result = sandboxWrite(sessionId, parsed.data.path, parsed.data.content);
       const event = {
         type: 'sandbox.file.changed' as const,
         sessionId,
         path: parsed.data.path,
-        op: 'modify' as const,
+        op: (existedBefore ? 'modify' : 'create') as 'create' | 'modify',
         at: new Date().toISOString(),
       };
       appendEvent(event);
@@ -75,6 +87,19 @@ export const registerSandboxRoutes: FastifyPluginAsync<{ eventBus: EventBus }> =
           timedOut: result.timedOut,
         })
         .run();
+      const ev = {
+        type: 'sandbox.exec.completed' as const,
+        sessionId,
+        agentId: parsed.data.agentId ?? null,
+        runId,
+        command: parsed.data.command,
+        exitCode: result.exitCode,
+        durationMs: result.durationMs,
+        timedOut: result.timedOut,
+        at: new Date().toISOString(),
+      };
+      appendEvent(ev);
+      eventBus.emit(ev);
       return { runId, ...result };
     } catch (err) {
       return reply.internalServerError(err instanceof Error ? err.message : String(err));

@@ -78,8 +78,25 @@ export const ChannelMessagePosted = z.object({
   at: z.iso.datetime(),
 });
 
+// Emitted ONCE per doc the first time `path` is created in the session.
+// Subsequent rewrites of the same path emit `doc.updated` instead, so a
+// `count(events.type='doc.published')` reducer matches `count(docs)`
+// without needing to dedupe by path.
 export const DocPublished = z.object({
   type: z.literal('doc.published'),
+  sessionId: z.uuid(),
+  docId: z.uuid(),
+  path: z.string(),
+  byAgentId: z.uuid(),
+  at: z.iso.datetime(),
+});
+
+// Emitted on every rewrite of an existing doc (same `path` / same `docId`).
+// Activity feeds typically render these as a "republish" line; doc-count
+// reducers should ignore them. Decoupled from `doc.published` so the
+// "1 row in `docs` = 1 `doc.published` event" invariant holds again.
+export const DocUpdated = z.object({
+  type: z.literal('doc.updated'),
   sessionId: z.uuid(),
   docId: z.uuid(),
   path: z.string(),
@@ -92,6 +109,21 @@ export const SandboxFileChanged = z.object({
   sessionId: z.uuid(),
   path: z.string(),
   op: z.enum(['create', 'modify', 'delete']),
+  at: z.iso.datetime(),
+});
+
+// Emitted when a sandbox_exec run terminates. Surfaces command duration +
+// exit status in the activity feed so reviewers can spot slow / failing
+// shell calls without opening the per-tool-call detail sheet.
+export const SandboxExecCompleted = z.object({
+  type: z.literal('sandbox.exec.completed'),
+  sessionId: z.uuid(),
+  agentId: z.string().nullable().optional(),
+  runId: z.uuid(),
+  command: z.string(),
+  exitCode: z.number().int(),
+  durationMs: z.number().int().nonnegative(),
+  timedOut: z.boolean(),
   at: z.iso.datetime(),
 });
 
@@ -167,6 +199,11 @@ export const AgentCancelRequested = z.object({
 
 export const MemoryUpdated = z.object({
   type: z.literal('memory.updated'),
+  // Project-scoped event, but we also tag the originating session so the
+  // event survives the events.session_id NOT NULL invariant (required by
+  // appendEvent). Without sessionId we cannot satisfy the "every domain
+  // fact appended to events" invariant from CLAUDE.md.
+  sessionId: z.uuid(),
   projectId: z.string(),
   key: z.string(),
   at: z.iso.datetime(),
@@ -183,7 +220,9 @@ export const AgentDeckEvent = z.discriminatedUnion('type', [
   ToolUseResult,
   ChannelMessagePosted,
   DocPublished,
+  DocUpdated,
   SandboxFileChanged,
+  SandboxExecCompleted,
   TestResultReported,
   DirectMessagePosted,
   UserInputSubmitted,
