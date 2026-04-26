@@ -1,0 +1,17 @@
+{
+  "target": 5000,
+  "batchSize": 50,
+  "sent": 5000,
+  "okCount": 5000,
+  "aborted": false,
+  "errorCount": 0,
+  "totalMs": 20451.9487,
+  "ratePerSec": 244.4754812043901,
+  "batchSummary": {
+    "count": 100,
+    "p50BatchMs": 206.48949999999968,
+    "p95BatchMs": 252.6756000000023,
+    "maxBatchMs": 277.3186999999998
+  },
+  "errorsSample": []
+}

@@ -1,0 +1,138 @@
+{
+  "startedAt": "2026-04-25T22:31:00.302Z",
+  "hotSession": {
+    "id": "96b094f3-641c-4ff1-b025-fbeeb324604b",
+    "score": 5696
+  },
+  "hotEndpoints": [
+    {
+      "name": "GET /sessions",
+      "n": 200,
+      "p50": 11.44,
+      "p95": 12.06,
+      "p99": 12.43,
+      "min": 11.13,
+      "max": 12.56,
+      "mean": 11.5
+    },
+    {
+      "name": "GET /sessions/:id",
+      "n": 200,
+      "p50": 4.99,
+      "p95": 5.45,
+      "p99": 5.65,
+      "min": 4.78,
+      "max": 5.72,
+      "mean": 5.06
+    },
+    {
+      "name": "GET /sessions/:id/agents",
+      "n": 200,
+      "p50": 1.19,
+      "p95": 1.45,
+      "p99": 2.29,
+      "min": 1.01,
+      "max": 2.38,
+      "mean": 1.21
+    },
+    {
+      "name": "GET /sessions/:id/tool-calls",
+      "n": 200,
+      "p50": 0.48,
+      "p95": 0.58,
+      "p99": 0.74,
+      "min": 0.42,
+      "max": 0.74,
+      "mean": 0.5
+    },
+    {
+      "name": "GET /sessions/:id/channel",
+      "n": 200,
+      "p50": 1.3,
+      "p95": 1.55,
+      "p99": 1.66,
+      "min": 1.14,
+      "max": 1.67,
+      "mean": 1.32
+    },
+    {
+      "name": "GET /sessions/:id/events",
+      "n": 200,
+      "p50": 0.29,
+      "p95": 0.4,
+      "p99": 0.56,
+      "min": 0.23,
+      "max": 0.64,
+      "mean": 0.3
+    }
+  ],
+  "syntheticSession": {
+    "id": "f4487926-265f-4cfd-ac51-a4a36c86add3",
+    "rootAgentId": "016fb365-a9e7-4de5-a857-a9494739ca09",
+    "eventCount": 0
+  },
+  "bulkInsert": {
+    "count": 5000,
+    "durMs": 761,
+    "eps": 6570,
+    "batchTimes": [
+      101,
+      71,
+      72,
+      61,
+      93,
+      83,
+      67,
+      68,
+      74,
+      70
+    ]
+  },
+  "fatEndpoints": [
+    {
+      "name": "GET /sessions/:id (5k)",
+      "n": 100,
+      "p50": 3.25,
+      "p95": 3.77,
+      "p99": 3.94,
+      "min": 2.59,
+      "max": 3.94,
+      "mean": 3.16
+    },
+    {
+      "name": "GET /sessions/:id/events?limit=5000",
+      "n": 100,
+      "p50": 0.33,
+      "p95": 0.39,
+      "p99": 0.46,
+      "min": 0.28,
+      "max": 0.46,
+      "mean": 0.32
+    },
+    {
+      "name": "GET /sessions/:id/channel (5k)",
+      "n": 100,
+      "p50": 1.23,
+      "p95": 1.48,
+      "p99": 1.73,
+      "min": 1.07,
+      "max": 1.73,
+      "mean": 1.24
+    }
+  ],
+  "singleThroughput": {
+    "name": "POST /channel",
+    "n": 500,
+    "p50": 0.65,
+    "p95": 1.01,
+    "p99": 11.98,
+    "min": 0.51,
+    "max": 20.15,
+    "mean": 0.86,
+    "durMs": 444,
+    "eps": 1126
+  },
+  "cleanup": {
+    "status": 204
+  }
+}

@@ -1,0 +1,341 @@
+{
+  "sessionId": "30a38b07-3c17-4920-8d04-3f146025cab2",
+  "batch": [
+    {
+      "type": "session.started",
+      "sessionId": "30a38b07-3c17-4920-8d04-3f146025cab2",
+      "projectId": "sdk-translator-probe",
+      "prompt": "Spawn two Task sub-agents in parallel. Each must post exactly one line 'hello from <their-name>' to the channel via mcp__agentdeck__post_to_channel, then return.",
+      "at": "2026-04-25T22:20:13.552Z"
+    },
+    {
+      "type": "agent.spawned",
+      "sessionId": "30a38b07-3c17-4920-8d04-3f146025cab2",
+      "agentId": "4ade7a50-d838-4569-884c-4f92298ff771",
+      "parentAgentId": null,
+      "name": "orchestrator",
+      "role": "root",
+      "prompt": "Spawn two Task sub-agents in parallel. Each must post exactly one line 'hello from <their-name>' to the channel via mcp__agentdeck__post_to_channel, then return.",
+      "at": "2026-04-25T22:20:13.552Z",
+      "seq": 0
+    },
+    {
+      "type": "agent.tool.use.start",
+      "sessionId": "30a38b07-3c17-4920-8d04-3f146025cab2",
+      "agentId": "4ade7a50-d838-4569-884c-4f92298ff771",
+      "at": "2026-04-25T22:20:29.816Z",
+      "seq": 1,
+      "toolCallId": "toolu_01QCVsEUySkqCC4jvrmkKYUc",
+      "toolName": "Agent",
+      "input": {
+        "description": "Post hello from Alpha",
+        "subagent_type": "general-purpose",
+        "prompt": "Your name is \"Alpha\".\n\nYour one and only task: post exactly one line to the agentdeck channel and then return.\n\nSteps:\n1. The tool `mcp__agentdeck__post_to_channel` is a deferred tool — its schema is not loaded yet. First call:\n   ToolSearch with query \"select:mcp__agentdeck__post_to_channel\" and max_results=1\n2. Then call mcp__agentdeck__post_to_channel with content exactly: hello from Alpha\n3. Return a one-line confirmation of what you posted (no other tool calls, no extra messages).\n\nDo NOT post any other channel messages. Do NOT explore the codebase. Do NOT spawn any further sub-agents."
+      }
+    },
+    {
+      "type": "agent.spawned",
+      "sessionId": "30a38b07-3c17-4920-8d04-3f146025cab2",
+      "agentId": "8ab771da-6298-46f7-aab6-2bd3b77c9c82",
+      "parentAgentId": "4ade7a50-d838-4569-884c-4f92298ff771",
+      "name": "Post hello from Alpha",
+      "role": "local_agent",
+      "prompt": "Your name is \"Alpha\".\n\nYour one and only task: post exactly one line to the agentdeck channel and then return.\n\nSteps:\n1. The tool `mcp__agentdeck__post_to_channel` is a deferred tool — its schema is not loaded yet. First call:\n   ToolSearch with query \"select:mcp__agentdeck__post_to_channel\" and max_results=1\n2. Then call mcp__agentdeck__post_to_channel with content exactly: hello from Alpha\n3. Return a one-line confirmation of what you posted (no other tool calls, no extra messages).\n\nDo NOT post any other channel messages. Do NOT explore the codebase. Do NOT spawn any further sub-agents.",
+      "at": "2026-04-25T22:20:29.821Z",
+      "seq": 2
+    },
+    {
+      "type": "agent.tool.use.start",
+      "sessionId": "30a38b07-3c17-4920-8d04-3f146025cab2",
+      "agentId": "4ade7a50-d838-4569-884c-4f92298ff771",
+      "at": "2026-04-25T22:20:31.698Z",
+      "seq": 3,
+      "toolCallId": "toolu_01SxTyqPjyBCvZhtUHZL641c",
+      "toolName": "Agent",
+      "input": {
+        "description": "Post hello from Beta",
+        "subagent_type": "general-purpose",
+        "prompt": "Your name is \"Beta\".\n\nYour one and only task: post exactly one line to the agentdeck channel and then return.\n\nSteps:\n1. The tool `mcp__agentdeck__post_to_channel` is a deferred tool — its schema is not loaded yet. First call:\n   ToolSearch with query \"select:mcp__agentdeck__post_to_channel\" and max_results=1\n2. Then call mcp__agentdeck__post_to_channel with content exactly: hello from Beta\n3. Return a one-line confirmation of what you posted (no other tool calls, no extra messages).\n\nDo NOT post any other channel messages. Do NOT explore the codebase. Do NOT spawn any further sub-agents."
+      }
+    },
+    {
+      "type": "agent.spawned",
+      "sessionId": "30a38b07-3c17-4920-8d04-3f146025cab2",
+      "agentId": "32e00845-6c15-4ee0-b35f-25e150a8db73",
+      "parentAgentId": "4ade7a50-d838-4569-884c-4f92298ff771",
+      "name": "Post hello from Beta",
+      "role": "local_agent",
+      "prompt": "Your name is \"Beta\".\n\nYour one and only task: post exactly one line to the agentdeck channel and then return.\n\nSteps:\n1. The tool `mcp__agentdeck__post_to_channel` is a deferred tool — its schema is not loaded yet. First call:\n   ToolSearch with query \"select:mcp__agentdeck__post_to_channel\" and max_results=1\n2. Then call mcp__agentdeck__post_to_channel with content exactly: hello from Beta\n3. Return a one-line confirmation of what you posted (no other tool calls, no extra messages).\n\nDo NOT post any other channel messages. Do NOT explore the codebase. Do NOT spawn any further sub-agents.",
+      "at": "2026-04-25T22:20:31.700Z",
+      "seq": 4
+    },
+    {
+      "type": "agent.tool.use.start",
+      "sessionId": "30a38b07-3c17-4920-8d04-3f146025cab2",
+      "agentId": "8ab771da-6298-46f7-aab6-2bd3b77c9c82",
+      "at": "2026-04-25T22:20:32.244Z",
+      "seq": 5,
+      "toolCallId": "toolu_016haFwErbdsribYhRMZqUrY",
+      "toolName": "ToolSearch",
+      "input": {
+        "query": "select:mcp__agentdeck__post_to_channel",
+        "max_results": 1
+      }
+    },
+    {
+      "type": "agent.tool.use.result",
+      "sessionId": "30a38b07-3c17-4920-8d04-3f146025cab2",
+      "agentId": "8ab771da-6298-46f7-aab6-2bd3b77c9c82",
+      "at": "2026-04-25T22:20:32.300Z",
+      "seq": 6,
+      "toolCallId": "toolu_016haFwErbdsribYhRMZqUrY",
+      "output": [
+        {
+          "type": "tool_reference",
+          "tool_name": "mcp__agentdeck__post_to_channel"
+        }
+      ],
+      "isError": false,
+      "durationMs": 0
+    },
+    {
+      "type": "agent.tool.use.start",
+      "sessionId": "30a38b07-3c17-4920-8d04-3f146025cab2",
+      "agentId": "32e00845-6c15-4ee0-b35f-25e150a8db73",
+      "at": "2026-04-25T22:20:34.073Z",
+      "seq": 7,
+      "toolCallId": "toolu_01ABL68SGoYcPqeZrX2G4Agb",
+      "toolName": "ToolSearch",
+      "input": {
+        "query": "select:mcp__agentdeck__post_to_channel",
+        "max_results": 1
+      }
+    },
+    {
+      "type": "agent.tool.use.result",
+      "sessionId": "30a38b07-3c17-4920-8d04-3f146025cab2",
+      "agentId": "32e00845-6c15-4ee0-b35f-25e150a8db73",
+      "at": "2026-04-25T22:20:34.131Z",
+      "seq": 8,
+      "toolCallId": "toolu_01ABL68SGoYcPqeZrX2G4Agb",
+      "output": [
+        {
+          "type": "tool_reference",
+          "tool_name": "mcp__agentdeck__post_to_channel"
+        }
+      ],
+      "isError": false,
+      "durationMs": 0
+    },
+    {
+      "type": "agent.tool.use.start",
+      "sessionId": "30a38b07-3c17-4920-8d04-3f146025cab2",
+      "agentId": "8ab771da-6298-46f7-aab6-2bd3b77c9c82",
+      "at": "2026-04-25T22:20:34.597Z",
+      "seq": 9,
+      "toolCallId": "toolu_01W85ppUdhPSVZRA25rrdNgU",
+      "toolName": "mcp__agentdeck__post_to_channel",
+      "input": {
+        "content": "hello from Alpha"
+      }
+    },
+    {
+      "type": "channel.message.posted",
+      "sessionId": "30a38b07-3c17-4920-8d04-3f146025cab2",
+      "messageId": "640dc727-3b77-4bdd-8d21-a5e5aac3bbd4",
+      "fromAgentId": "4ade7a50-d838-4569-884c-4f92298ff771",
+      "fromAgentName": "orchestrator",
+      "content": "hello from Alpha",
+      "at": "2026-04-25T22:20:34.625Z"
+    },
+    {
+      "type": "agent.tool.use.result",
+      "sessionId": "30a38b07-3c17-4920-8d04-3f146025cab2",
+      "agentId": "8ab771da-6298-46f7-aab6-2bd3b77c9c82",
+      "at": "2026-04-25T22:20:34.681Z",
+      "seq": 10,
+      "toolCallId": "toolu_01W85ppUdhPSVZRA25rrdNgU",
+      "output": [
+        {
+          "type": "text",
+          "text": "[agentdeck] dashboard: http://127.0.0.1:3000\n[agentdeck] campaigns: http://127.0.0.1:3000/campaigns\n[agentdeck] bridged session: http://127.0.0.1:3000/sessions/30a38b07-3c17-4920-8d04-3f146025cab2\n[agentdeck] tell the human these URLs at the start of the conversation so they can supervise live.\n\nPosted to channel (id 640dc727)."
+        }
+      ],
+      "isError": false,
+      "durationMs": 0
+    },
+    {
+      "type": "agent.tool.use.start",
+      "sessionId": "30a38b07-3c17-4920-8d04-3f146025cab2",
+      "agentId": "32e00845-6c15-4ee0-b35f-25e150a8db73",
+      "at": "2026-04-25T22:20:36.524Z",
+      "seq": 11,
+      "toolCallId": "toolu_01C3JTcJ34iRtGHB33PQQgFg",
+      "toolName": "mcp__agentdeck__post_to_channel",
+      "input": {
+        "content": "hello from Beta"
+      }
+    },
+    {
+      "type": "channel.message.posted",
+      "sessionId": "30a38b07-3c17-4920-8d04-3f146025cab2",
+      "messageId": "dbd3d67a-72a7-4ff2-8ca8-a9143da410b4",
+      "fromAgentId": "4ade7a50-d838-4569-884c-4f92298ff771",
+      "fromAgentName": "orchestrator",
+      "content": "hello from Beta",
+      "at": "2026-04-25T22:20:36.526Z"
+    },
+    {
+      "type": "agent.tool.use.result",
+      "sessionId": "30a38b07-3c17-4920-8d04-3f146025cab2",
+      "agentId": "32e00845-6c15-4ee0-b35f-25e150a8db73",
+      "at": "2026-04-25T22:20:36.594Z",
+      "seq": 12,
+      "toolCallId": "toolu_01C3JTcJ34iRtGHB33PQQgFg",
+      "output": [
+        {
+          "type": "text",
+          "text": "Posted to channel (id dbd3d67a)."
+        }
+      ],
+      "isError": false,
+      "durationMs": 0
+    },
+    {
+      "type": "agent.tool.use.result",
+      "sessionId": "30a38b07-3c17-4920-8d04-3f146025cab2",
+      "agentId": "4ade7a50-d838-4569-884c-4f92298ff771",
+      "at": "2026-04-25T22:20:36.831Z",
+      "seq": 13,
+      "toolCallId": "toolu_01QCVsEUySkqCC4jvrmkKYUc",
+      "output": [
+        {
+          "type": "text",
+          "text": "Posted \"hello from Alpha\" to the agentdeck channel (message id 640dc727)."
+        },
+        {
+          "type": "text",
+          "text": "agentId: ab3915b5bec167b91 (use SendMessage with to: 'ab3915b5bec167b91' to continue this agent)\n<usage>total_tokens: 27077\ntool_uses: 2\nduration_ms: 7013</usage>"
+        }
+      ],
+      "isError": false,
+      "durationMs": 0
+    },
+    {
+      "type": "agent.message.delta",
+      "sessionId": "30a38b07-3c17-4920-8d04-3f146025cab2",
+      "agentId": "8ab771da-6298-46f7-aab6-2bd3b77c9c82",
+      "at": "2026-04-25T22:20:36.831Z",
+      "seq": 14,
+      "text": "Posted \"hello from Alpha\" to the agentdeck channel (message id 640dc727).\nagentId: ab3915b5bec167b91 (use SendMessage with to: 'ab3915b5bec167b91' to continue this agent)\n<usage>total_tokens: 27077\ntool_uses: 2\nduration_ms: 7013</usage>"
+    },
+    {
+      "type": "agent.stopped",
+      "sessionId": "30a38b07-3c17-4920-8d04-3f146025cab2",
+      "agentId": "8ab771da-6298-46f7-aab6-2bd3b77c9c82",
+      "at": "2026-04-25T22:20:36.831Z",
+      "seq": 15,
+      "status": "completed",
+      "tokensIn": 0,
+      "tokensOut": 0
+    },
+    {
+      "type": "agent.tool.use.result",
+      "sessionId": "30a38b07-3c17-4920-8d04-3f146025cab2",
+      "agentId": "4ade7a50-d838-4569-884c-4f92298ff771",
+      "at": "2026-04-25T22:20:38.874Z",
+      "seq": 16,
+      "toolCallId": "toolu_01SxTyqPjyBCvZhtUHZL641c",
+      "output": [
+        {
+          "type": "text",
+          "text": "Posted \"hello from Beta\" to the channel."
+        },
+        {
+          "type": "text",
+          "text": "agentId: a76cee5d9abbc5811 (use SendMessage with to: 'a76cee5d9abbc5811' to continue this agent)\n<usage>total_tokens: 26921\ntool_uses: 2\nduration_ms: 7174</usage>"
+        }
+      ],
+      "isError": false,
+      "durationMs": 0
+    },
+    {
+      "type": "agent.message.delta",
+      "sessionId": "30a38b07-3c17-4920-8d04-3f146025cab2",
+      "agentId": "32e00845-6c15-4ee0-b35f-25e150a8db73",
+      "at": "2026-04-25T22:20:38.874Z",
+      "seq": 17,
+      "text": "Posted \"hello from Beta\" to the channel.\nagentId: a76cee5d9abbc5811 (use SendMessage with to: 'a76cee5d9abbc5811' to continue this agent)\n<usage>total_tokens: 26921\ntool_uses: 2\nduration_ms: 7174</usage>"
+    },
+    {
+      "type": "agent.stopped",
+      "sessionId": "30a38b07-3c17-4920-8d04-3f146025cab2",
+      "agentId": "32e00845-6c15-4ee0-b35f-25e150a8db73",
+      "at": "2026-04-25T22:20:38.874Z",
+      "seq": 18,
+      "status": "completed",
+      "tokensIn": 0,
+      "tokensOut": 0
+    },
+    {
+      "type": "agent.message.delta",
+      "sessionId": "30a38b07-3c17-4920-8d04-3f146025cab2",
+      "agentId": "4ade7a50-d838-4569-884c-4f92298ff771",
+      "at": "2026-04-25T22:20:41.517Z",
+      "seq": 19,
+      "text": "Both s"
+    },
+    {
+      "type": "agent.message.delta",
+      "sessionId": "30a38b07-3c17-4920-8d04-3f146025cab2",
+      "agentId": "4ade7a50-d838-4569-884c-4f92298ff771",
+      "at": "2026-04-25T22:20:41.829Z",
+      "seq": 20,
+      "text": "ub-agents ran in parallel and posted exactly one line each to the agentdeck channel:\n\n- **Alpha**"
+    },
+    {
+      "type": "agent.message.delta",
+      "sessionId": "30a38b07-3c17-4920-8d04-3f146025cab2",
+      "agentId": "4ade7a50-d838-4569-884c-4f92298ff771",
+      "at": "2026-04-25T22:20:42.274Z",
+      "seq": 21,
+      "text": " → posted `hello from Alpha` (message id `640dc727`)\n- **Beta** → posted"
+    },
+    {
+      "type": "agent.message.delta",
+      "sessionId": "30a38b07-3c17-4920-8d04-3f146025cab2",
+      "agentId": "4ade7a50-d838-4569-884c-4f92298ff771",
+      "at": "2026-04-25T22:20:42.604Z",
+      "seq": 22,
+      "text": " `hello from Beta`\n\nBoth have returned. You can verify the two messages in the dashboard chann"
+    },
+    {
+      "type": "agent.message.delta",
+      "sessionId": "30a38b07-3c17-4920-8d04-3f146025cab2",
+      "agentId": "4ade7a50-d838-4569-884c-4f92298ff771",
+      "at": "2026-04-25T22:20:42.973Z",
+      "seq": 23,
+      "text": "el view at `http://127.0.0.1:3000`."
+    },
+    {
+      "type": "agent.stopped",
+      "sessionId": "30a38b07-3c17-4920-8d04-3f146025cab2",
+      "agentId": "4ade7a50-d838-4569-884c-4f92298ff771",
+      "at": "2026-04-25T22:20:43.437Z",
+      "seq": 24,
+      "status": "completed",
+      "tokensIn": 7,
+      "tokensOut": 1238
+    },
+    {
+      "type": "session.ended",
+      "sessionId": "30a38b07-3c17-4920-8d04-3f146025cab2",
+      "status": "completed",
+      "totalTokensIn": 7,
+      "totalTokensOut": 1238,
+      "at": "2026-04-25T22:20:43.437Z"
+    }
+  ],
+  "deltas": [],
+  "connectedAt": "2026-04-25T22:23:11.358Z"
+}

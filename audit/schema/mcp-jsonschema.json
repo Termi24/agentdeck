@@ -1,0 +1,1060 @@
+[
+  {
+    "name": "list_procedures",
+    "ok": true,
+    "length": 119,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "run_test_procedure",
+    "ok": true,
+    "length": 262,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "args": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "post_to_channel",
+    "ok": true,
+    "length": 183,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "content"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "read_channel",
+    "ok": true,
+    "length": 550,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "since": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        },
+        "limit": {
+          "default": 50,
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 200
+        }
+      },
+      "required": [
+        "limit"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "publish_doc",
+    "ok": true,
+    "length": 215,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "content": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "content"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "sandbox_write",
+    "ok": true,
+    "length": 215,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "content": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "content"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "sandbox_read",
+    "ok": true,
+    "length": 177,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "sandbox_exec",
+    "ok": true,
+    "length": 281,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "timeoutMs": {
+          "default": 120000,
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 600000
+        }
+      },
+      "required": [
+        "command",
+        "timeoutMs"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "report_test_result",
+    "ok": true,
+    "length": 348,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "suite": {
+          "type": "string",
+          "minLength": 1
+        },
+        "caseName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed",
+            "skipped"
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "evidence": {}
+      },
+      "required": [
+        "suite",
+        "caseName",
+        "status"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "project_memory_read",
+    "ok": true,
+    "length": 175,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "project_memory_write",
+    "ok": true,
+    "length": 209,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "value"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "send_direct",
+    "ok": true,
+    "length": 239,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "toAgentId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "content": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "toAgentId",
+        "content"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "read_direct",
+    "ok": true,
+    "length": 214,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "limit": {
+          "default": 50,
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 200
+        }
+      },
+      "required": [
+        "limit"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "secrets_get",
+    "ok": true,
+    "length": 177,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "wait_for_channel",
+    "ok": true,
+    "length": 281,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "pattern": {
+          "type": "string",
+          "minLength": 1
+        },
+        "timeoutMs": {
+          "default": 120000,
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 600000
+        }
+      },
+      "required": [
+        "pattern",
+        "timeoutMs"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "await_user_input",
+    "ok": true,
+    "length": 256,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string"
+        },
+        "timeoutMs": {
+          "default": 120000,
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 600000
+        }
+      },
+      "required": [
+        "timeoutMs"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "diff_exec",
+    "ok": true,
+    "length": 231,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "runIdA": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runIdB": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "runIdA",
+        "runIdB"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "request_agent_cancel",
+    "ok": true,
+    "length": 183,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "agentId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "agentId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "check_cancellation",
+    "ok": true,
+    "length": 119,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "browser_navigate",
+    "ok": true,
+    "length": 176,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri"
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "browser_snapshot",
+    "ok": true,
+    "length": 119,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "browser_click",
+    "ok": true,
+    "length": 485,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "selector": {
+          "type": "string",
+          "minLength": 1
+        },
+        "timeoutMs": {
+          "default": 3000,
+          "description": "Per-locator wait in ms. Default 3000 — keeps optional/missing elements fail-fast instead of blocking 30 s on Playwright defaults. Bump if the element legitimately needs more time to mount.",
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 60000
+        }
+      },
+      "required": [
+        "selector",
+        "timeoutMs"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "browser_type",
+    "ok": true,
+    "length": 344,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "selector": {
+          "type": "string",
+          "minLength": 1
+        },
+        "text": {
+          "type": "string"
+        },
+        "pressEnter": {
+          "type": "boolean"
+        },
+        "timeoutMs": {
+          "default": 3000,
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 60000
+        }
+      },
+      "required": [
+        "selector",
+        "text",
+        "timeoutMs"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "browser_fill_form",
+    "ok": true,
+    "length": 445,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "fields": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "selector": {
+                "type": "string",
+                "minLength": 1
+              },
+              "value": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "selector",
+              "value"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "timeoutMs": {
+          "default": 3000,
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 60000
+        }
+      },
+      "required": [
+        "fields",
+        "timeoutMs"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "browser_wait_for",
+    "ok": true,
+    "length": 311,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "textGone": {
+          "type": "string"
+        },
+        "selector": {
+          "type": "string"
+        },
+        "timeoutMs": {
+          "default": 15000,
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 120000
+        }
+      },
+      "required": [
+        "timeoutMs"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "browser_press_key",
+    "ok": true,
+    "length": 175,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "browser_screenshot",
+    "ok": true,
+    "length": 176,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "caption": {
+          "type": "string"
+        },
+        "fullPage": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "browser_new_context",
+    "ok": true,
+    "length": 187,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "agentId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reset": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "browser_dispose_context",
+    "ok": true,
+    "length": 160,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "agentId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "validate_claim",
+    "ok": true,
+    "length": 1150,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": [
+            "GET",
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE"
+          ]
+        },
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "headers": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "body": {},
+        "expectStatus": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "string",
+              "enum": [
+                "2xx",
+                "3xx",
+                "4xx",
+                "5xx"
+              ]
+            }
+          ]
+        },
+        "expectJsonContains": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "expectBodyIncludes": {
+          "type": "string"
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 120000
+        },
+        "maxRetries": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "maxBackoffMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 300000
+        },
+        "followRedirects": {
+          "description": "Follow 3xx redirects (default true). Set false to surface a trailing-slash 308 directly instead of silently following — useful when diagnosing \"401 after auth-stripping redirect\" issues.",
+          "type": "boolean"
+        },
+        "maxRedirects": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 20
+        }
+      },
+      "required": [
+        "method",
+        "url"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "api_inventory",
+    "ok": true,
+    "length": 1333,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "framework": {
+          "type": "string",
+          "enum": [
+            "flask",
+            "express",
+            "fastapi",
+            "fastify"
+          ]
+        },
+        "rootPath": {
+          "type": "string",
+          "minLength": 1
+        },
+        "selfCheck": {
+          "type": "object",
+          "properties": {
+            "baseUrl": {
+              "type": "string",
+              "format": "uri"
+            },
+            "sampleSize": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 50
+            },
+            "timeoutMs": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 60000
+            },
+            "threshold": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          },
+          "required": [
+            "baseUrl"
+          ],
+          "additionalProperties": false
+        },
+        "summary": {
+          "description": "When true, omit the per-route list and return only aggregated counts (per blueprint × method). Use for first-pass exploration on large codebases (>200 routes) to avoid blowing the token budget; then call again with `filter` to drill in.",
+          "type": "boolean"
+        },
+        "filter": {
+          "description": "Restrict the returned routes[] to entries matching all given criteria.",
+          "type": "object",
+          "properties": {
+            "method": {
+              "type": "string",
+              "enum": [
+                "GET",
+                "POST",
+                "PUT",
+                "PATCH",
+                "DELETE"
+              ]
+            },
+            "pathPrefix": {
+              "type": "string",
+              "minLength": 1
+            },
+            "blueprint": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "limit": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 2000
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "framework",
+        "rootPath"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "read_methodology",
+    "ok": true,
+    "length": 423,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "section": {
+          "default": "overview",
+          "type": "string",
+          "enum": [
+            "overview",
+            "principles",
+            "tooling",
+            "communication",
+            "pre-start",
+            "personas",
+            "phase-0",
+            "phase-1",
+            "phase-2",
+            "phase-3",
+            "phase-4",
+            "phase-5",
+            "phase-6",
+            "phase-7",
+            "phase-9",
+            "conventions",
+            "templates",
+            "troubleshooting",
+            "metrics",
+            "full"
+          ]
+        }
+      },
+      "required": [
+        "section"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "start_qa_campaign",
+    "ok": true,
+    "length": 297,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "projectName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cliSource": {
+          "default": "claude-code",
+          "type": "string",
+          "minLength": 1
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "projectName",
+        "cliSource"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "record_campaign_metric",
+    "ok": true,
+    "length": 418,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "campaignId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "boolean"
+            }
+          ]
+        },
+        "tags": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "campaignId",
+        "name",
+        "value"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "submit_campaign_retrospective",
+    "ok": true,
+    "length": 513,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "campaignId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "whatWentWell": {
+          "type": "string",
+          "minLength": 1
+        },
+        "whatWentBadly": {
+          "type": "string",
+          "minLength": 1
+        },
+        "keyLearnings": {
+          "type": "string",
+          "minLength": 1
+        },
+        "toolingFeedback": {
+          "type": "string",
+          "minLength": 1
+        },
+        "recommendations": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "campaignId",
+        "whatWentWell",
+        "whatWentBadly",
+        "keyLearnings",
+        "toolingFeedback",
+        "recommendations"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "end_campaign",
+    "ok": true,
+    "length": 287,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "campaignId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "default": "completed",
+          "type": "string",
+          "enum": [
+            "completed",
+            "aborted",
+            "failed"
+          ]
+        }
+      },
+      "required": [
+        "campaignId",
+        "status"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "set_agent_identity",
+    "ok": true,
+    "length": 446,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Display name for this CLI/agent in the agentdeck hub. Should be user-chosen, descriptive (e.g. \"claude-code-orchestrator\", \"cursor-runner\"). Ask the user if you do not have one."
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

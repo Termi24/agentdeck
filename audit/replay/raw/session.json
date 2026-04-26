@@ -1,0 +1,13 @@
+{
+  "id": "07582244-bfef-4123-988a-9675354f4490",
+  "project_id": "qa-da2e6f28-replay-probe",
+  "title": "replay-probe-06",
+  "root_prompt": "event-replay invariant probe",
+  "workspace_path": "G:\\agentdeck\\data\\workspaces\\07582244-bfef-4123-988a-9675354f4490",
+  "status": "completed",
+  "total_tokens_in": 0,
+  "total_tokens_out": 0,
+  "started_at": "2026-04-25T14:05:17.104Z",
+  "ended_at": "2026-04-25T14:06:55.076Z",
+  "is_bridge": 1
+}

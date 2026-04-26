@@ -11,6 +11,10 @@ import { SessionHeader } from '@/components/session/session-header';
 import { KpiStrip } from '@/components/session/kpi-strip';
 import { AgentTree } from '@/components/session/agent-tree';
 import { ActivityFeed } from '@/components/session/activity-feed';
+import {
+  ActivityFeedVirtualized,
+  VIRTUALIZE_THRESHOLD,
+} from '@/components/session/activity-feed-virtualized';
 import { RunningTools } from '@/components/session/running-tools';
 import { SessionTabs } from '@/components/session/session-tabs';
 import { Button } from '@/components/ui/button';
@@ -98,6 +102,19 @@ function SessionDashboard({ sessionId }: { sessionId: string }) {
 
   const clearFilter = useCallback(() => setSelectedAgentId(null), []);
 
+  // ActivityFeed virtualization — auto-switch above VIRTUALIZE_THRESHOLD or
+  // explicitly via ?virtualize=1 / ?virtualize=0 URL param (override). The
+  // virtualized variant uses react-window v2 with useDynamicRowHeight, the
+  // non-virtualized variant keeps the simpler scroll-area path. Both share
+  // foldEvents + FeedRow exports so the rendered output is identical.
+  const useVirtualizedFeed = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    const param = new URLSearchParams(window.location.search).get('virtualize');
+    if (param === '1') return true;
+    if (param === '0') return false;
+    return events.length >= VIRTUALIZE_THRESHOLD;
+  }, [events.length]);
+
   // IMPORTANT: keep this early-return AFTER every hook above so React never
   // sees a different hook count between renders. Triggering on `missing`
   // swaps the whole rendered tree to the 404 view.
@@ -130,11 +147,19 @@ function SessionDashboard({ sessionId }: { sessionId: string }) {
           />
         </div>
         <div className="col-span-12 md:col-span-6 md:h-[520px]">
-          <ActivityFeed
-            agentFilterId={selectedAgentId}
-            agentFilterName={selectedAgentName}
-            onClearAgentFilter={clearFilter}
-          />
+          {useVirtualizedFeed ? (
+            <ActivityFeedVirtualized
+              agentFilterId={selectedAgentId}
+              agentFilterName={selectedAgentName}
+              onClearAgentFilter={clearFilter}
+            />
+          ) : (
+            <ActivityFeed
+              agentFilterId={selectedAgentId}
+              agentFilterName={selectedAgentName}
+              onClearAgentFilter={clearFilter}
+            />
+          )}
         </div>
         <div className="col-span-12 md:col-span-3 md:h-[520px]">
           <RunningTools sessionId={sessionId} />

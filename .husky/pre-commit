@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+# agentdeck pre-commit — invariants enforced at every commit.
+# See package.json `scripts.check:tool-count` and scripts/check-tool-count.mjs
+# for the v0.0.7 anti-drift fix this hook locks in.
+
+set -e
+
+pnpm check:tool-count

@@ -1,0 +1,217 @@
+[
+  {
+    "id": 15294,
+    "seq": 0,
+    "type": "session.started",
+    "payload": {
+      "type": "session.started",
+      "sessionId": "6fdd563d-19b2-43cb-8e67-48b508a2f3c6",
+      "projectId": "qa-63536a00",
+      "prompt": "event-replay round2 probe",
+      "at": "2026-04-25T14:34:51.684Z"
+    }
+  },
+  {
+    "id": 15295,
+    "seq": 0,
+    "type": "agent.spawned",
+    "payload": {
+      "type": "agent.spawned",
+      "sessionId": "6fdd563d-19b2-43cb-8e67-48b508a2f3c6",
+      "agentId": "821f9340-2455-4074-8a98-c2f2ee468866",
+      "parentAgentId": null,
+      "name": "probe-root",
+      "role": "orchestrator",
+      "prompt": "event-replay round2 probe",
+      "at": "2026-04-25T14:34:51.684Z",
+      "seq": 0
+    }
+  },
+  {
+    "id": 15296,
+    "seq": 0,
+    "type": "agent.spawned",
+    "payload": {
+      "type": "agent.spawned",
+      "sessionId": "6fdd563d-19b2-43cb-8e67-48b508a2f3c6",
+      "agentId": "f3b0a12c-ae45-405b-ac92-56b1f42935d8",
+      "parentAgentId": "821f9340-2455-4074-8a98-c2f2ee468866",
+      "name": "probe-agent-A",
+      "role": "tester",
+      "prompt": "agent A skill",
+      "at": "2026-04-25T14:34:56.234Z",
+      "seq": 1
+    }
+  },
+  {
+    "id": 15299,
+    "seq": 0,
+    "type": "agent.spawned",
+    "payload": {
+      "type": "agent.spawned",
+      "sessionId": "6fdd563d-19b2-43cb-8e67-48b508a2f3c6",
+      "agentId": "028b4f92-02da-4288-82da-5c85044fc80d",
+      "parentAgentId": "821f9340-2455-4074-8a98-c2f2ee468866",
+      "name": "probe-agent-B",
+      "role": "tester",
+      "prompt": "agent B skill",
+      "at": "2026-04-25T14:34:57.342Z",
+      "seq": 1
+    }
+  },
+  {
+    "id": 15303,
+    "seq": 0,
+    "type": "test.result.reported",
+    "payload": {
+      "type": "test.result.reported",
+      "sessionId": "6fdd563d-19b2-43cb-8e67-48b508a2f3c6",
+      "resultId": "19701a7d-9909-4306-9fba-82204ceb0827",
+      "agentId": "821f9340-2455-4074-8a98-c2f2ee468866",
+      "suite": "round2",
+      "caseName": "probe-test-1",
+      "status": "passed",
+      "message": "ok",
+      "at": "2026-04-25T14:35:07.413Z"
+    }
+  },
+  {
+    "id": 15337,
+    "seq": 0,
+    "type": "channel.message.posted",
+    "payload": {
+      "type": "channel.message.posted",
+      "sessionId": "6fdd563d-19b2-43cb-8e67-48b508a2f3c6",
+      "messageId": "a70c99fc-8b5c-44b4-8a9b-c92f50b09059",
+      "fromAgentId": "821f9340-2455-4074-8a98-c2f2ee468866",
+      "fromAgentName": "probe-root",
+      "content": "channel message 1",
+      "at": "2026-04-25T14:35:27.704Z"
+    }
+  },
+  {
+    "id": 15338,
+    "seq": 0,
+    "type": "channel.message.posted",
+    "payload": {
+      "type": "channel.message.posted",
+      "sessionId": "6fdd563d-19b2-43cb-8e67-48b508a2f3c6",
+      "messageId": "8879ac92-89a7-4b96-be08-e200565c9e20",
+      "fromAgentId": "821f9340-2455-4074-8a98-c2f2ee468866",
+      "fromAgentName": "probe-root",
+      "content": "channel message 2",
+      "at": "2026-04-25T14:35:29.272Z"
+    }
+  },
+  {
+    "id": 15341,
+    "seq": 0,
+    "type": "channel.message.posted",
+    "payload": {
+      "type": "channel.message.posted",
+      "sessionId": "6fdd563d-19b2-43cb-8e67-48b508a2f3c6",
+      "messageId": "57cb13fe-be22-456e-b0f8-ab272ec55c2d",
+      "fromAgentId": "821f9340-2455-4074-8a98-c2f2ee468866",
+      "fromAgentName": "probe-root",
+      "content": "channel message 3",
+      "at": "2026-04-25T14:35:30.389Z"
+    }
+  },
+  {
+    "id": 15342,
+    "seq": 0,
+    "type": "channel.message.posted",
+    "payload": {
+      "type": "channel.message.posted",
+      "sessionId": "6fdd563d-19b2-43cb-8e67-48b508a2f3c6",
+      "messageId": "4e747fc1-b642-4325-b9e5-bc1508e43bfa",
+      "fromAgentId": "821f9340-2455-4074-8a98-c2f2ee468866",
+      "fromAgentName": "probe-root",
+      "content": "channel message 4",
+      "at": "2026-04-25T14:35:31.437Z"
+    }
+  },
+  {
+    "id": 15347,
+    "seq": 0,
+    "type": "channel.message.posted",
+    "payload": {
+      "type": "channel.message.posted",
+      "sessionId": "6fdd563d-19b2-43cb-8e67-48b508a2f3c6",
+      "messageId": "75651a0d-c6fa-4f42-923d-172ba4a51b1e",
+      "fromAgentId": "821f9340-2455-4074-8a98-c2f2ee468866",
+      "fromAgentName": "probe-root",
+      "content": "channel message 5",
+      "at": "2026-04-25T14:35:32.679Z"
+    }
+  },
+  {
+    "id": 15348,
+    "seq": 0,
+    "type": "doc.published",
+    "payload": {
+      "type": "doc.published",
+      "sessionId": "6fdd563d-19b2-43cb-8e67-48b508a2f3c6",
+      "docId": "19b85cdb-21a3-4439-84ba-38709df001b7",
+      "path": "doc1.md",
+      "byAgentId": "821f9340-2455-4074-8a98-c2f2ee468866",
+      "at": "2026-04-25T14:35:34.205Z"
+    }
+  },
+  {
+    "id": 15349,
+    "seq": 0,
+    "type": "doc.published",
+    "payload": {
+      "type": "doc.published",
+      "sessionId": "6fdd563d-19b2-43cb-8e67-48b508a2f3c6",
+      "docId": "def300f7-5c30-49c5-b873-1421523119ff",
+      "path": "doc2.md",
+      "byAgentId": "821f9340-2455-4074-8a98-c2f2ee468866",
+      "at": "2026-04-25T14:35:35.028Z"
+    }
+  },
+  {
+    "id": 15380,
+    "seq": 0,
+    "type": "agent.stopped",
+    "payload": {
+      "type": "agent.stopped",
+      "sessionId": "6fdd563d-19b2-43cb-8e67-48b508a2f3c6",
+      "agentId": "f3b0a12c-ae45-405b-ac92-56b1f42935d8",
+      "at": "2026-04-25T14:35:48.031Z",
+      "status": "completed",
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "seq": 1
+    }
+  },
+  {
+    "id": 15385,
+    "seq": 0,
+    "type": "agent.stopped",
+    "payload": {
+      "type": "agent.stopped",
+      "sessionId": "6fdd563d-19b2-43cb-8e67-48b508a2f3c6",
+      "agentId": "028b4f92-02da-4288-82da-5c85044fc80d",
+      "at": "2026-04-25T14:35:49.451Z",
+      "status": "cancelled",
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "seq": 1
+    }
+  },
+  {
+    "id": 15415,
+    "seq": 0,
+    "type": "session.ended",
+    "payload": {
+      "type": "session.ended",
+      "sessionId": "6fdd563d-19b2-43cb-8e67-48b508a2f3c6",
+      "status": "completed",
+      "totalTokensIn": 0,
+      "totalTokensOut": 0,
+      "at": "2026-04-25T14:36:40.579Z"
+    }
+  }
+]

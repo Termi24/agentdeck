@@ -20,12 +20,14 @@
     "db:generate": "pnpm --filter @agentdeck/shared db:generate",
     "db:migrate": "pnpm --filter @agentdeck/shared db:migrate",
     "db:studio": "pnpm --filter @agentdeck/shared db:studio",
-    "build:exe": "node scripts/build-exe.mjs"
+    "build:exe": "node scripts/build-exe.mjs",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
     "@yao-pkg/pkg": "^6.9.0",
     "esbuild": "^0.24.2",
+    "husky": "^9.1.7",
     "prettier": "^3.4.0",
     "turbo": "^2.3.0",
     "typescript": "^5.7.0"

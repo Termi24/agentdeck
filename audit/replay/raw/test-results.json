@@ -1,0 +1,35 @@
+[
+  {
+    "id": "277acb86-a9ed-4dd0-91e0-b2415b371d47",
+    "session_id": "07582244-bfef-4123-988a-9675354f4490",
+    "agent_id": "d74a9566-1d9d-4d43-9c6d-b633815cc325",
+    "suite": "event-replay",
+    "case_name": "fixture-1",
+    "status": "passed",
+    "evidence": null,
+    "message": "fixture row 1",
+    "created_at": "2026-04-25T14:05:34.903Z"
+  },
+  {
+    "id": "752914cd-902d-4fb3-84f7-48c039b93eb2",
+    "session_id": "07582244-bfef-4123-988a-9675354f4490",
+    "agent_id": "d74a9566-1d9d-4d43-9c6d-b633815cc325",
+    "suite": "event-replay",
+    "case_name": "fixture-2",
+    "status": "passed",
+    "evidence": null,
+    "message": "fixture row 2",
+    "created_at": "2026-04-25T14:05:36.468Z"
+  },
+  {
+    "id": "ca4fbe8a-8104-4ce4-bdc6-9c8f2f26718c",
+    "session_id": "07582244-bfef-4123-988a-9675354f4490",
+    "agent_id": "d74a9566-1d9d-4d43-9c6d-b633815cc325",
+    "suite": "event-replay",
+    "case_name": "fixture-3",
+    "status": "skipped",
+    "evidence": null,
+    "message": "fixture row 3",
+    "created_at": "2026-04-25T14:05:37.975Z"
+  }
+]

@@ -1,0 +1,126 @@
+{
+  "sessionId": "d93a5465-3e69-4075-8abe-d51e7a865a19",
+  "batch": [
+    {
+      "type": "session.started",
+      "sessionId": "d93a5465-3e69-4075-8abe-d51e7a865a19",
+      "projectId": "event-replay-probe",
+      "prompt": "event-replay probe",
+      "at": "2026-04-25T22:21:50.726Z"
+    },
+    {
+      "type": "agent.spawned",
+      "sessionId": "d93a5465-3e69-4075-8abe-d51e7a865a19",
+      "agentId": "350a3d89-6926-4603-866c-9319ba6db36a",
+      "parentAgentId": null,
+      "name": "claude-cli",
+      "role": "bridge",
+      "prompt": "event-replay probe",
+      "at": "2026-04-25T22:21:50.726Z",
+      "seq": 0
+    },
+    {
+      "type": "channel.message.posted",
+      "sessionId": "d93a5465-3e69-4075-8abe-d51e7a865a19",
+      "messageId": "7b94cbda-b427-4198-8791-54fa86619aa3",
+      "fromAgentId": "350a3d89-6926-4603-866c-9319ba6db36a",
+      "fromAgentName": "probe",
+      "content": "msg-1",
+      "at": "2026-04-25T22:21:54.788Z"
+    },
+    {
+      "type": "channel.message.posted",
+      "sessionId": "d93a5465-3e69-4075-8abe-d51e7a865a19",
+      "messageId": "7e1a6d99-decd-4371-9716-abf4f4444aa6",
+      "fromAgentId": "350a3d89-6926-4603-866c-9319ba6db36a",
+      "fromAgentName": "probe",
+      "content": "msg-2",
+      "at": "2026-04-25T22:21:55.936Z"
+    },
+    {
+      "type": "channel.message.posted",
+      "sessionId": "d93a5465-3e69-4075-8abe-d51e7a865a19",
+      "messageId": "28533ba4-17bb-4ff2-a7e7-94681806756e",
+      "fromAgentId": "350a3d89-6926-4603-866c-9319ba6db36a",
+      "fromAgentName": "probe",
+      "content": "msg-3",
+      "at": "2026-04-25T22:21:57.071Z"
+    },
+    {
+      "type": "channel.message.posted",
+      "sessionId": "d93a5465-3e69-4075-8abe-d51e7a865a19",
+      "messageId": "976ab742-504f-4596-9e32-08ebc3e1c3ee",
+      "fromAgentId": "350a3d89-6926-4603-866c-9319ba6db36a",
+      "fromAgentName": "probe",
+      "content": "msg-4",
+      "at": "2026-04-25T22:21:58.597Z"
+    },
+    {
+      "type": "channel.message.posted",
+      "sessionId": "d93a5465-3e69-4075-8abe-d51e7a865a19",
+      "messageId": "2135302e-503b-4b5c-9ef1-d3799603552d",
+      "fromAgentId": "350a3d89-6926-4603-866c-9319ba6db36a",
+      "fromAgentName": "probe",
+      "content": "msg-5",
+      "at": "2026-04-25T22:21:59.773Z"
+    },
+    {
+      "type": "doc.published",
+      "sessionId": "d93a5465-3e69-4075-8abe-d51e7a865a19",
+      "docId": "502a42a5-88e9-4e24-b7fa-e6cad9992f0c",
+      "path": "audit/probe-doc-A.md",
+      "byAgentId": "350a3d89-6926-4603-866c-9319ba6db36a",
+      "at": "2026-04-25T22:22:01.264Z"
+    },
+    {
+      "type": "doc.published",
+      "sessionId": "d93a5465-3e69-4075-8abe-d51e7a865a19",
+      "docId": "faa448a0-5165-4b7d-8666-5136f29effb2",
+      "path": "audit/probe-doc-B.md",
+      "byAgentId": "350a3d89-6926-4603-866c-9319ba6db36a",
+      "at": "2026-04-25T22:22:02.404Z"
+    },
+    {
+      "type": "test.result.reported",
+      "sessionId": "d93a5465-3e69-4075-8abe-d51e7a865a19",
+      "resultId": "09497ff2-5554-4674-8577-913259fcf5d6",
+      "agentId": "350a3d89-6926-4603-866c-9319ba6db36a",
+      "suite": "probe",
+      "caseName": "case-1",
+      "status": "passed",
+      "message": null,
+      "at": "2026-04-25T22:22:03.926Z"
+    },
+    {
+      "type": "test.result.reported",
+      "sessionId": "d93a5465-3e69-4075-8abe-d51e7a865a19",
+      "resultId": "9cf885d4-5429-46e4-8edf-4adeaf27f076",
+      "agentId": "350a3d89-6926-4603-866c-9319ba6db36a",
+      "suite": "probe",
+      "caseName": "case-2",
+      "status": "failed",
+      "message": null,
+      "at": "2026-04-25T22:22:05.073Z"
+    },
+    {
+      "type": "test.result.reported",
+      "sessionId": "d93a5465-3e69-4075-8abe-d51e7a865a19",
+      "resultId": "4cf9f0fa-f40d-4813-b52d-3942c07f029b",
+      "agentId": "350a3d89-6926-4603-866c-9319ba6db36a",
+      "suite": "probe",
+      "caseName": "case-3",
+      "status": "skipped",
+      "message": null,
+      "at": "2026-04-25T22:22:06.274Z"
+    }
+  ],
+  "deltas": [
+    {
+      "type": "memory.updated",
+      "projectId": "rest-auditor-probe",
+      "key": "probe-key",
+      "at": "2026-04-25T22:22:56.398Z"
+    }
+  ],
+  "connectedAt": "2026-04-25T22:22:51.660Z"
+}
