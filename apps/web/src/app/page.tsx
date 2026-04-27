@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   Bug,
+  ChevronDown,
   FlaskConical,
   Folder,
   MessageSquare,
@@ -25,7 +26,15 @@ import {
   statusDotClass,
   statusGlow,
 } from '@/components/session/shared';
-import { getFindingsSummary, listProjects, type FindingsSummary, type ProjectListItem } from '@/lib/api';
+import { TeamList } from '@/components/projects/team-list';
+import {
+  getFindingsSummary,
+  listProjectSessions,
+  listProjects,
+  type FindingsSummary,
+  type ProjectListItem,
+  type SessionListItem,
+} from '@/lib/api';
 import { usePollingInterval } from '@/lib/use-polling';
 import { cn } from '@/lib/utils';
 
@@ -136,7 +145,7 @@ export default function HubPage() {
             </p>
             <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {filtered.map((p) => (
-                <ProjectCard key={p.projectId} p={p} />
+                <ProjectCard key={p.projectId} p={p} autoExpandTeams={projects.length === 1} />
               ))}
             </ul>
           </div>
@@ -425,11 +434,12 @@ function Toolbar({
 /*  Project card                                                               */
 /* -------------------------------------------------------------------------- */
 
-function ProjectCard({ p }: { p: ProjectListItem }) {
+function ProjectCard({ p, autoExpandTeams }: { p: ProjectListItem; autoExpandTeams: boolean }) {
   const isActive = p.activeSessionCount > 0;
   const lastActivityMs = p.lastActivityAt ? Date.now() - new Date(p.lastActivityAt).getTime() : Infinity;
   const isLive = isActive && lastActivityMs < LIVE_WINDOW_MS;
   const status = p.latestStatus;
+  const isStatusActive = status ? ACTIVE_STATUSES.includes(status) : false;
 
   // Single-session projects: clicking the card jumps straight to the session
   // dashboard. Multi-session: jumps to /projects/[id] which lists them.
@@ -440,27 +450,64 @@ function ProjectCard({ p }: { p: ProjectListItem }) {
   ) as never;
 
   const totalTokens = p.totalTokensIn + p.totalTokensOut;
-  const isStatusActive = status ? ACTIVE_STATUSES.includes(status) : false;
+  const showTeamsToggle = p.sessionCount > 0;
+
+  // Expand state — auto-expand when this is the only project (the value /projects/default
+  // used to provide before the FB-09 redirect). Multi-project mode defaults to collapsed.
+  const [expanded, setExpanded] = useState(autoExpandTeams);
+  const [sessions, setSessions] = useState<SessionListItem[] | null>(null);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+
+  // Re-sync expand state if the user goes from N>1 projects back to a single
+  // project (or vice-versa) without remounting.
+  useEffect(() => {
+    setExpanded(autoExpandTeams);
+  }, [autoExpandTeams]);
+
+  // Lazy fetch the project's sessions on first expand. Re-poll while expanded
+  // so live status dots stay fresh on the embedded TeamList rows.
+  useEffect(() => {
+    if (!expanded || !showTeamsToggle) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const rows = await listProjectSessions(p.projectId);
+        if (!cancelled) setSessions(rows);
+      } catch {
+        if (!cancelled && sessions === null) setSessions([]);
+      }
+    };
+    if (sessions === null) setSessionsLoading(true);
+    void load().finally(() => {
+      if (!cancelled) setSessionsLoading(false);
+    });
+    const id = setInterval(load, 8_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [expanded, p.projectId, showTeamsToggle, sessions]);
 
   return (
     <li>
-      <Link href={primaryHref} className="group block h-full">
-        <article
+      <article
+        className={cn(
+          'glass ring-soft relative h-full overflow-hidden rounded-2xl border border-white/10 transition-all',
+          'hover:border-white/20',
+          status && isLive && statusGlow(status, true),
+        )}
+      >
+        {/* ambient orb */}
+        <div
           className={cn(
-            'glass ring-soft relative h-full overflow-hidden rounded-2xl border border-white/10 p-5 transition-all',
-            'group-hover:border-white/20 group-hover:bg-white/[0.06]',
-            status && isLive && statusGlow(status, true),
+            'pointer-events-none absolute -right-12 -top-12 size-40 rounded-full blur-3xl',
+            isLive ? 'bg-emerald-500/15' : 'bg-violet-500/10',
           )}
-        >
-          {/* ambient orb */}
-          <div
-            className={cn(
-              'pointer-events-none absolute -right-12 -top-12 size-40 rounded-full blur-3xl',
-              isLive ? 'bg-emerald-500/15' : 'bg-violet-500/10',
-            )}
-            aria-hidden
-          />
+          aria-hidden
+        />
 
+        {/* Top zone — clicks navigate to session/project page */}
+        <Link href={primaryHref} className="group block p-5">
           <div className="flex items-start gap-2">
             <div className="flex-1 min-w-0">
               <div className="mb-1.5 flex items-center gap-2 text-[11.5px] text-white/55">
@@ -509,22 +556,60 @@ function ProjectCard({ p }: { p: ProjectListItem }) {
               </p>
             </div>
           )}
+        </Link>
 
-          <div className="mt-5 flex items-center justify-between border-t border-white/10 pt-3 text-[11px] text-white/45">
-            <div className="flex items-center gap-3">
-              <span className="font-mono tabular">
-                {totalTokens.toLocaleString()} tok
+        {/* Teams expand zone — outside the Link so its toggle/contents
+            can be clicked without navigating. */}
+        {showTeamsToggle && (
+          <div className="border-t border-white/10">
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              aria-expanded={expanded}
+              className="flex w-full items-center justify-between gap-2 px-5 py-2.5 text-[11.5px] text-white/55 transition-colors hover:bg-white/[0.04] hover:text-white"
+            >
+              <span className="flex items-center gap-1.5">
+                <Users className="size-3.5" />
+                {expanded ? 'Hide' : 'Show'} {p.sessionCount} team{p.sessionCount > 1 ? 's' : ''}
               </span>
-              {p.startedAt && (
-                <span>
-                  first <span className="font-mono">{relativeTime(p.startedAt)}</span>
-                </span>
-              )}
-            </div>
-            <span className="opacity-0 transition-opacity group-hover:opacity-100">open →</span>
+              <ChevronDown
+                className={cn('size-3.5 transition-transform', expanded && 'rotate-180')}
+                aria-hidden
+              />
+            </button>
+            {expanded && (
+              <div className="border-t border-white/10">
+                {sessionsLoading && sessions === null ? (
+                  <p className="px-5 py-3 text-[11.5px] text-white/45">loading teams…</p>
+                ) : sessions && sessions.length > 0 ? (
+                  <TeamList projectId={p.projectId} sessions={sessions} variant="inline" />
+                ) : (
+                  <p className="px-5 py-3 text-[11.5px] text-white/45">no teams yet</p>
+                )}
+              </div>
+            )}
           </div>
-        </article>
-      </Link>
+        )}
+
+        {/* Footer — totalTokens + open hint. Sits inside the article but
+            outside the Link, so the hover state matches the whole article. */}
+        <div className="flex items-center justify-between border-t border-white/10 px-5 py-3 text-[11px] text-white/45">
+          <div className="flex items-center gap-3">
+            <span className="font-mono tabular">{totalTokens.toLocaleString()} tok</span>
+            {p.startedAt && (
+              <span>
+                first <span className="font-mono">{relativeTime(p.startedAt)}</span>
+              </span>
+            )}
+          </div>
+          <Link
+            href={`/projects/${encodeURIComponent(p.projectId)}` as never}
+            className="text-white/55 hover:text-white"
+          >
+            open project →
+          </Link>
+        </div>
+      </article>
     </li>
   );
 }

@@ -23,9 +23,17 @@ import { ACTIVE_STATUSES, LiveDot, relativeTime, statusClasses } from '@/compone
 interface Props {
   projectId: string;
   sessions: SessionListItem[];
+  /**
+   * `card` (default) — wrap the list in the standard glass Card with a
+   *   "Teams in <projectId>" header. Used as a section on /projects/[id].
+   * `inline` — render only the row list + the side-sheet, no Card wrap and
+   *   no header. Used when embedded inside another card (the hub's
+   *   ProjectCard expand).
+   */
+  variant?: 'card' | 'inline';
 }
 
-export function TeamList({ projectId, sessions }: Props) {
+export function TeamList({ projectId, sessions, variant = 'card' }: Props) {
   const [openTeamId, setOpenTeamId] = useState<string | null>(null);
 
   const ordered = useMemo(
@@ -40,6 +48,75 @@ export function TeamList({ projectId, sessions }: Props) {
 
   if (sessions.length === 0) return null;
 
+  const rows = (
+    <ul className="divide-y divide-white/5">
+      {ordered.map((s) => (
+        <li key={s.id}>
+          <button
+            type="button"
+            onClick={() => setOpenTeamId(s.id)}
+            className="flex w-full items-center gap-3 px-4 py-3 text-left text-xs transition-colors hover:bg-white/5"
+          >
+            <span className="shrink-0">
+              {ACTIVE_STATUSES.includes(s.status) &&
+              s.lastActivityAt &&
+              Date.now() - new Date(s.lastActivityAt).getTime() < 10_000 ? (
+                <LiveDot />
+              ) : (
+                <span
+                  className={`inline-block h-2 w-2 rounded-full ${
+                    ACTIVE_STATUSES.includes(s.status)
+                      ? 'bg-emerald-300'
+                      : s.status === 'failed'
+                        ? 'bg-rose-400'
+                        : 'bg-white/30'
+                  }`}
+                />
+              )}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[13px] font-medium text-white">{s.title || s.id.slice(0, 8)}</p>
+              <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10.5px] text-white/45">
+                <span>
+                  {s.agentCount} agent{s.agentCount === 1 ? '' : 's'}
+                  {s.runningAgentCount > 0 && (
+                    <span className="text-emerald-200"> · {s.runningAgentCount} running</span>
+                  )}
+                </span>
+                <span>started {relativeTime(s.startedAt)}</span>
+                {s.lastActivityAt && <span>last event {relativeTime(s.lastActivityAt)}</span>}
+              </p>
+            </div>
+            <Badge variant="outline" className={`rounded-full px-2 py-0 text-[10px] capitalize ${statusClasses(s.status)}`}>
+              {s.status.replace('_', ' ')}
+            </Badge>
+            <span className="font-mono inline-flex h-5 items-center rounded-full border border-white/15 bg-white/5 px-1.5 text-[10px] uppercase tracking-wider text-white/65">
+              {s.isBridge ? 'CLI' : 'SDK'}
+            </span>
+            <ArrowRight className="h-3.5 w-3.5 text-white/45" />
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+
+  const sheet = (
+    <TeamSheet
+      sessionId={openTeamId}
+      sessionTitle={ordered.find((s) => s.id === openTeamId)?.title ?? null}
+      onOpenChange={(o) => !o && setOpenTeamId(null)}
+    />
+  );
+
+  if (variant === 'inline') {
+    return (
+      <>
+        {rows}
+        {sheet}
+      </>
+    );
+  }
+
   return (
     <section className="pb-6">
       <Card className="glass ring-soft rounded-2xl border-white/10 bg-transparent">
@@ -52,66 +129,9 @@ export function TeamList({ projectId, sessions }: Props) {
             </span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-0">
-          <ul className="divide-y divide-white/5">
-            {ordered.map((s) => (
-              <li key={s.id}>
-                <button
-                  type="button"
-                  onClick={() => setOpenTeamId(s.id)}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-xs transition-colors hover:bg-white/5"
-                >
-                  <span className="shrink-0">
-                    {ACTIVE_STATUSES.includes(s.status) &&
-                    s.lastActivityAt &&
-                    Date.now() - new Date(s.lastActivityAt).getTime() < 10_000 ? (
-                      <LiveDot />
-                    ) : (
-                      <span
-                        className={`inline-block h-2 w-2 rounded-full ${
-                          ACTIVE_STATUSES.includes(s.status)
-                            ? 'bg-emerald-300'
-                            : s.status === 'failed'
-                              ? 'bg-rose-400'
-                              : 'bg-white/30'
-                        }`}
-                      />
-                    )}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13px] font-medium text-white">{s.title || s.id.slice(0, 8)}</p>
-                    <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10.5px] text-white/45">
-                      <span>
-                        {s.agentCount} agent{s.agentCount === 1 ? '' : 's'}
-                        {s.runningAgentCount > 0 && (
-                          <span className="text-emerald-200"> · {s.runningAgentCount} running</span>
-                        )}
-                      </span>
-                      <span>started {relativeTime(s.startedAt)}</span>
-                      {s.lastActivityAt && (
-                        <span>last event {relativeTime(s.lastActivityAt)}</span>
-                      )}
-                    </p>
-                  </div>
-                  <Badge variant="outline" className={`rounded-full px-2 py-0 text-[10px] capitalize ${statusClasses(s.status)}`}>
-                    {s.status.replace('_', ' ')}
-                  </Badge>
-                  <span className="font-mono inline-flex h-5 items-center rounded-full border border-white/15 bg-white/5 px-1.5 text-[10px] uppercase tracking-wider text-white/65">
-                    {s.isBridge ? 'CLI' : 'SDK'}
-                  </span>
-                  <ArrowRight className="h-3.5 w-3.5 text-white/45" />
-                </button>
-              </li>
-            ))}
-          </ul>
-        </CardContent>
+        <CardContent className="p-0">{rows}</CardContent>
       </Card>
-
-      <TeamSheet
-        sessionId={openTeamId}
-        sessionTitle={ordered.find((s) => s.id === openTeamId)?.title ?? null}
-        onOpenChange={(o) => !o && setOpenTeamId(null)}
-      />
+      {sheet}
     </section>
   );
 }
