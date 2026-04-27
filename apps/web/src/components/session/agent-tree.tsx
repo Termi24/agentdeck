@@ -102,15 +102,15 @@ export function AgentTree({ sessionId, selectedAgentId, onSelect }: Props) {
 
   return (
     <>
-      <Card className="flex h-full flex-col overflow-hidden border-border/60 bg-card/40">
-        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 border-b border-border/40 px-4 py-2.5">
-          <CardTitle className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+      <Card className="glass ring-soft flex h-full flex-col overflow-hidden rounded-2xl border-white/10 bg-transparent">
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 border-b border-white/10 px-4 py-2.5">
+          <CardTitle className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-white/55">
             Agents
-            <Badge variant="outline" className="px-1.5 py-0 text-[9px]">
+            <Badge variant="outline" className="font-mono tabular border-white/15 bg-white/5 px-1.5 py-0 text-[10px] text-white/70">
               {runningCount}/{agents.length}
             </Badge>
             {stuckCount > 0 && (
-              <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 px-1.5 py-0 text-[9px] text-amber-300">
+              <Badge variant="outline" className="border-amber-300/30 bg-amber-400/10 px-1.5 py-0 text-[10px] text-amber-200">
                 {stuckCount} stuck
               </Badge>
             )}
@@ -119,7 +119,7 @@ export function AgentTree({ sessionId, selectedAgentId, onSelect }: Props) {
             <button
               type="button"
               onClick={() => onSelect(null)}
-              className="text-[10px] text-muted-foreground hover:text-foreground"
+              className="text-[10px] text-white/55 hover:text-white"
             >
               clear filter
             </button>
@@ -129,9 +129,9 @@ export function AgentTree({ sessionId, selectedAgentId, onSelect }: Props) {
           <ScrollArea className="h-full">
             <div className="flex flex-col">
               {loading && agents.length === 0 ? (
-                <div className="p-4 text-xs text-muted-foreground">loading…</div>
+                <div className="p-4 text-[11.5px] text-white/45">loading…</div>
               ) : agents.length === 0 ? (
-                <div className="p-4 text-xs text-muted-foreground">no agents yet</div>
+                <div className="p-4 text-[11.5px] text-white/45">no agents yet</div>
               ) : (
                 <>
                   {roots.map((r) => (
@@ -201,20 +201,20 @@ function AgentRow({
   const active = ACTIVE_STATUSES.includes(a.status);
   return (
     <div
-      className={`group flex items-center gap-2 border-b border-border/30 px-3 py-2 text-xs transition-colors ${
-        selected ? 'bg-primary/10' : 'hover:bg-muted/30'
-      } ${isRoot ? '' : 'pl-7'} ${stuck?.level === 'intervention' ? 'bg-red-500/5' : stuck?.level === 'warning' ? 'bg-amber-500/5' : ''}`}
+      className={`group flex items-center gap-2 border-b border-white/5 px-3 py-2 text-xs transition-colors ${
+        selected ? 'bg-white/10 ring-1 ring-inset ring-violet-300/30' : 'hover:bg-white/5'
+      } ${isRoot ? '' : 'pl-7'} ${stuck?.level === 'intervention' ? 'bg-rose-500/10' : stuck?.level === 'warning' ? 'bg-amber-400/5' : ''}`}
     >
       <button type="button" onClick={onSelect} className="flex min-w-0 flex-1 items-center gap-2 text-left">
         <span className="shrink-0">
           {active && a.runningToolCallCount > 0 ? (
             <LiveDot />
           ) : active ? (
-            <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+            <span className="inline-block h-2 w-2 rounded-full bg-emerald-300" />
           ) : (
             <span
               className={`inline-block h-2 w-2 rounded-full ${
-                a.status === 'failed' ? 'bg-red-500' : 'bg-zinc-600'
+                a.status === 'failed' ? 'bg-rose-400' : 'bg-white/30'
               }`}
             />
           )}
@@ -232,10 +232,10 @@ function AgentRow({
             <Tooltip>
               <TooltipTrigger asChild>
                 <span
-                  className={`flex items-center gap-0.5 rounded-sm px-1 text-[9px] ${
+                  className={`flex items-center gap-0.5 rounded-full px-1.5 text-[9px] ${
                     stuck.level === 'intervention'
-                      ? 'bg-red-500/15 text-red-400'
-                      : 'bg-amber-500/15 text-amber-400'
+                      ? 'bg-rose-400/15 text-rose-200'
+                      : 'bg-amber-400/15 text-amber-200'
                   }`}
                 >
                   <AlertTriangle className="h-2.5 w-2.5" />
@@ -251,31 +251,31 @@ function AgentRow({
           </TooltipProvider>
         )}
         {a.dmCount > 0 && (
-          <span className="rounded-sm bg-sky-500/15 px-1 text-[9px] text-sky-400" title="direct messages">
+          <span className="rounded-full bg-sky-400/15 px-1.5 text-[9px] text-sky-200" title="direct messages">
             ✉ {a.dmCount}
           </span>
         )}
         {a.runningToolCallCount > 0 && (
-          <span className="rounded-sm bg-emerald-500/15 px-1 text-[9px] text-emerald-400">
+          <span className="rounded-full bg-emerald-400/15 px-1.5 text-[9px] text-emerald-200">
             {a.runningToolCallCount}●
           </span>
         )}
         {a.toolCallCount > 0 && (
-          <span className="text-[9px] text-muted-foreground tabular-nums">{a.toolCallCount}</span>
+          <span className="font-mono text-[10px] tabular text-white/55">{a.toolCallCount}</span>
         )}
-        <Badge variant="outline" className={`px-1 py-0 text-[9px] ${statusClasses(a.status)}`}>
+        <Badge variant="outline" className={`rounded-full border px-1.5 py-0 text-[9px] capitalize ${statusClasses(a.status)}`}>
           {a.status.replace('_', ' ')}
         </Badge>
         <button
           type="button"
           onClick={onOpenDetail}
           aria-label="open agent detail"
-          className="rounded-sm p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="rounded-sm p-0.5 text-white/55 opacity-0 transition-opacity hover:text-white group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/50"
         >
           <Info className="h-3 w-3" />
         </button>
         <ChevronRight
-          className={`h-3 w-3 text-muted-foreground transition-opacity ${
+          className={`h-3 w-3 text-white/55 transition-opacity ${
             selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-60'
           }`}
         />

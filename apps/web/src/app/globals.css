@@ -4,6 +4,7 @@
 
 @layer base {
   :root {
+    /* shadcn tokens (light) */
     --background: 0 0% 100%;
     --foreground: 240 10% 3.9%;
     --card: 0 0% 100%;
@@ -21,26 +22,38 @@
     --border: 240 5.9% 90%;
     --input: 240 5.9% 90%;
     --ring: 240 5.9% 10%;
+
+    /* style B — accent gradient (violet → pink) */
+    --accent-from: 168 85% 247; /* #a78bfa */
+    --accent-to: 244 114% 182;  /* #f472b6 */
+    --accent-mid: 216 180% 254; /* used in 3-stop text gradient */
+
+    /* status glows (rgba pour box-shadow) */
+    --glow-cyan: 56, 189, 248;
+    --glow-amber: 251, 191, 36;
+    --glow-emerald: 52, 211, 153;
+    --glow-rose: 244, 63, 94;
   }
 
   .dark {
-    --background: 240 10% 3.9%;
+    /* shadcn tokens (dark) — base bg deep navy with hint of violet */
+    --background: 250 30% 4.5%;
     --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
+    --card: 250 25% 6.5%;
     --card-foreground: 0 0% 98%;
     --primary: 0 0% 98%;
     --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 15.9%;
+    --secondary: 250 18% 12%;
     --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
+    --muted: 250 18% 12%;
     --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
+    --accent: 250 18% 14%;
     --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
+    --destructive: 0 62.8% 40%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
+    --border: 250 15% 18%;
+    --input: 250 15% 18%;
+    --ring: 264 80% 70%;
   }
 
   * {
@@ -55,5 +68,84 @@
 
   body {
     @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans), 'Inter var', Inter, system-ui, sans-serif;
+    /* style B — multi-radial ambient gradient */
+    background-image:
+      radial-gradient(800px 500px at 12% -10%, rgba(168, 85, 247, 0.18), transparent 60%),
+      radial-gradient(900px 600px at 95% 0%, rgba(244, 114, 182, 0.14), transparent 55%),
+      radial-gradient(700px 600px at 50% 110%, rgba(56, 189, 248, 0.10), transparent 55%);
+    background-attachment: fixed;
+  }
+
+  /* Numerical content: tabular by default */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  /* glass surface (cards, headers, toolbars) */
+  .glass {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015));
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+
+  /* subtle ring inset top + ombre noire sous le bord (donne le "vitrage") */
+  .ring-soft {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      0 1px 0 rgba(0, 0, 0, 0.4);
+  }
+
+  /* dégradé violet→rose pour CTA/badges/tabs actifs */
+  .grad-accent {
+    background-image: linear-gradient(135deg, #a78bfa 0%, #f472b6 100%);
+  }
+
+  /* glow doux pour cartes par statut */
+  .glow-cyan {
+    box-shadow:
+      0 0 0 1px rgba(var(--glow-cyan), 0.35),
+      0 0 30px -5px rgba(var(--glow-cyan), 0.55);
+  }
+  .glow-amber {
+    box-shadow:
+      0 0 0 1px rgba(var(--glow-amber), 0.35),
+      0 0 30px -5px rgba(var(--glow-amber), 0.45);
+  }
+  .glow-emerald {
+    box-shadow:
+      0 0 0 1px rgba(var(--glow-emerald), 0.30),
+      0 0 30px -5px rgba(var(--glow-emerald), 0.35);
+  }
+  .glow-rose {
+    box-shadow:
+      0 0 0 1px rgba(var(--glow-rose), 0.35),
+      0 0 30px -5px rgba(var(--glow-rose), 0.45);
+  }
+
+  /* texte gradient — utilisé dans le hero */
+  .grad-text {
+    background-image: linear-gradient(135deg, #c4b5fd 0%, #f0abfc 50%, #fda4af 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* point pulsé pour l'état live */
+  .pulse-dot {
+    animation: pulse-dot 1.6s ease-in-out infinite;
+  }
+}
+
+@layer utilities {
+  @keyframes pulse-dot {
+    0%, 100% { transform: scale(1); opacity: 0.95; }
+    50% { transform: scale(1.35); opacity: 0.55; }
+  }
+  @keyframes shimmer {
+    0%, 100% { transform: translateX(-30%); }
+    50% { transform: translateX(30%); }
   }
 }

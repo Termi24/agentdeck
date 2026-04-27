@@ -129,12 +129,12 @@ export function SessionTabs({ sessionId }: { sessionId: string }) {
   };
 
   return (
-    <section className="px-6 pb-6">
-      <Card className="border-border/60 bg-card/40">
+    <section className="pt-4 pb-6">
+      <Card className="glass ring-soft rounded-2xl border-white/10 bg-transparent">
         <Tabs value={tab} onValueChange={onTabChange}>
-          <CardHeader className="border-b border-border/40 px-4 py-2.5">
+          <CardHeader className="border-b border-white/10 px-4 py-2.5">
             <CardTitle className="sr-only">Session details</CardTitle>
-            <TabsList className="h-8 w-full justify-start bg-transparent p-0">
+            <TabsList className="h-9 w-full justify-start gap-1 bg-transparent p-0">
               <TabTrigger value="agents" icon={Users} label="Agents & context" count={counts.agents} />
               <TabTrigger value="planning" icon={CalendarRange} label="Planning" count={counts.planning} />
               <TabTrigger value="dms" icon={Send} label="DMs" count={counts.dms} />
@@ -181,12 +181,12 @@ export function SessionTabs({ sessionId }: { sessionId: string }) {
                       <button
                         type="button"
                         onClick={() => setOpenDoc(d)}
-                        className="group flex w-full items-start gap-2 rounded-md border border-border/60 bg-muted/20 p-3 text-left text-xs transition-colors hover:border-primary/60"
+                        className="group flex w-full items-start gap-2 rounded-2xl border border-white/10 bg-white/5 p-3 text-left text-xs transition-colors hover:border-white/20 hover:bg-white/[0.08]"
                       >
-                        <FileText className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                        <FileText className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
                         <div className="min-w-0 flex-1">
-                          <p className="truncate font-mono text-foreground/90">{d.path}</p>
-                          <p className="mt-0.5 text-[10px] text-muted-foreground">
+                          <p className="font-mono truncate text-white/85">{d.path}</p>
+                          <p className="mt-0.5 text-[10px] text-white/45">
                             by <span className="font-mono">{d.byAgentId.slice(0, 8)}</span> · {relativeTime(d.at)}
                           </p>
                         </div>
@@ -205,9 +205,9 @@ export function SessionTabs({ sessionId }: { sessionId: string }) {
                 // height to scroll within. max-h alone left the viewport
                 // unconstrained and overflow never triggered (FB-06).
                 <ScrollArea className="h-[460px]">
-                  <table className="w-full text-xs">
-                    <thead className="sticky top-0 bg-card/90 text-[10px] uppercase tracking-wider text-muted-foreground">
-                      <tr className="border-b border-border/40">
+                  <table className="w-full text-[12px]">
+                    <thead className="sticky top-0 bg-[#0a0814]/90 text-[10px] uppercase tracking-wider text-white/50 backdrop-blur">
+                      <tr className="border-b border-white/10">
                         <th className="px-4 py-2 text-left font-medium">Status</th>
                         <th className="px-4 py-2 text-left font-medium">Suite</th>
                         <th className="px-4 py-2 text-left font-medium">Case</th>
@@ -229,15 +229,15 @@ export function SessionTabs({ sessionId }: { sessionId: string }) {
                               setOpenTest(t);
                             }
                           }}
-                          className="cursor-pointer border-b border-border/30 transition-colors hover:bg-muted/30 focus:bg-muted/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          className="cursor-pointer border-b border-white/5 transition-colors hover:bg-white/5 focus:bg-white/[0.08] focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/50"
                         >
                           <td className="px-4 py-2">
                             <StatusPill status={t.status} />
                           </td>
-                          <td className="px-4 py-2 font-mono">{t.suite}</td>
-                          <td className="px-4 py-2">{t.caseName}</td>
-                          <td className="max-w-md px-4 py-2 truncate text-muted-foreground">{t.message ?? '—'}</td>
-                          <td className="px-4 py-2 text-right text-muted-foreground tabular-nums">
+                          <td className="font-mono px-4 py-2 text-white/85">{t.suite}</td>
+                          <td className="px-4 py-2 text-white/85">{t.caseName}</td>
+                          <td className="max-w-md px-4 py-2 truncate text-white/55">{t.message ?? '—'}</td>
+                          <td className="font-mono px-4 py-2 text-right tabular text-white/55">
                             {relativeTime(t.at)}
                           </td>
                         </tr>
@@ -255,10 +255,10 @@ export function SessionTabs({ sessionId }: { sessionId: string }) {
                 <ScrollArea className="h-[460px]">
                   <ul className="flex flex-col">
                     {messages.map((m) => (
-                      <li key={m.messageId} className="flex items-start gap-3 border-b border-border/30 px-4 py-2 text-xs last:border-0">
-                        <span className="shrink-0 font-mono text-[11px] text-foreground/90">{m.fromAgentName}</span>
-                        <span className="flex-1 whitespace-pre-wrap break-words text-foreground/80">{m.content}</span>
-                        <span className="shrink-0 tabular-nums text-[10px] text-muted-foreground">
+                      <li key={m.messageId} className="flex items-start gap-3 border-b border-white/5 px-4 py-2 text-xs last:border-0">
+                        <span className="font-mono shrink-0 text-[11px] text-white/85">{m.fromAgentName}</span>
+                        <span className="flex-1 whitespace-pre-wrap break-words text-white/80">{m.content}</span>
+                        <span className="font-mono shrink-0 text-[10px] tabular text-white/45">
                           {relativeTime(m.at)}
                         </span>
                       </li>
@@ -337,14 +337,14 @@ function TabTrigger({
   return (
     <TabsTrigger
       value={value}
-      className="h-8 gap-2 rounded-none border-b-2 border-transparent bg-transparent px-3 text-xs data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+      className="h-8 gap-2 rounded-full border border-transparent bg-transparent px-3 text-[12px] text-white/55 data-[state=active]:border-white/15 data-[state=active]:bg-white/10 data-[state=active]:text-white data-[state=active]:shadow-none"
     >
       <Icon className="h-3.5 w-3.5" />
       {label}
       {count > 0 && (
-        <Badge variant="outline" className="ml-1 px-1 py-0 text-[9px] text-muted-foreground">
+        <span className="font-mono tabular ml-1 rounded-full border border-white/15 bg-white/5 px-1.5 py-0 text-[10px] text-white/70">
           {count}
-        </Badge>
+        </span>
       )}
     </TabsTrigger>
   );
@@ -353,19 +353,19 @@ function TabTrigger({
 function StatusPill({ status }: { status: 'passed' | 'failed' | 'skipped' }) {
   const cls =
     status === 'passed'
-      ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+      ? 'bg-emerald-400/15 text-emerald-200 border-emerald-300/30'
       : status === 'failed'
-        ? 'bg-red-500/15 text-red-400 border-red-500/30'
-        : 'bg-amber-500/15 text-amber-400 border-amber-500/30';
+        ? 'bg-rose-400/15 text-rose-200 border-rose-300/30'
+        : 'bg-amber-400/15 text-amber-200 border-amber-300/30';
   return (
-    <Badge variant="outline" className={`text-[10px] ${cls}`}>
+    <Badge variant="outline" className={`rounded-full px-2 py-0 text-[10px] capitalize ${cls}`}>
       {status}
     </Badge>
   );
 }
 
 function EmptyHint({ text }: { text: string }) {
-  return <p className="p-6 text-center text-xs text-muted-foreground">{text}</p>;
+  return <p className="p-8 text-center text-[12px] text-white/45">{text}</p>;
 }
 
 function AgentTile({ a, onOpen }: { a: SessionAgent; onOpen: () => void }) {
@@ -375,7 +375,7 @@ function AgentTile({ a, onOpen }: { a: SessionAgent; onOpen: () => void }) {
     <button
       type="button"
       onClick={onOpen}
-      className="group flex w-full flex-col gap-2 rounded-md border border-border/60 bg-muted/10 p-3 text-left text-xs transition-colors hover:border-primary/50 hover:bg-muted/30"
+      className="group flex w-full flex-col gap-2 rounded-2xl border border-white/10 bg-white/5 p-4 text-left text-xs transition-colors hover:border-white/20 hover:bg-white/[0.08]"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
@@ -384,44 +384,44 @@ function AgentTile({ a, onOpen }: { a: SessionAgent; onOpen: () => void }) {
           ) : (
             <span
               className={`inline-block h-2 w-2 rounded-full ${
-                active ? 'bg-emerald-500' : a.status === 'failed' ? 'bg-red-500' : 'bg-zinc-600'
+                active ? 'bg-emerald-300' : a.status === 'failed' ? 'bg-rose-400' : 'bg-white/30'
               }`}
             />
           )}
-          <span className="truncate font-mono text-sm">{a.name}</span>
+          <span className="font-mono truncate text-[13px] text-white">{a.name}</span>
         </div>
         <Badge
           variant="outline"
-          className={`shrink-0 text-[9px] ${isRoot ? 'border-primary/40 text-primary' : statusClasses(a.status)}`}
+          className={`shrink-0 rounded-full px-2 py-0 text-[10px] ${isRoot ? 'grad-accent border-0 text-white' : statusClasses(a.status)}`}
         >
           {isRoot ? 'orchestrator' : 'sub-agent'}
         </Badge>
       </div>
       <div className="flex flex-wrap items-center gap-1 text-[10px]">
         {a.role && (
-          <Badge variant="outline" className="px-1 py-0 text-[9px]">
+          <Badge variant="outline" className="rounded-full border-white/15 bg-white/5 px-2 py-0 text-[10px] text-white/70">
             {a.role}
           </Badge>
         )}
-        <Badge variant="outline" className={`px-1 py-0 text-[9px] ${statusClasses(a.status)}`}>
+        <Badge variant="outline" className={`rounded-full px-2 py-0 text-[10px] capitalize ${statusClasses(a.status)}`}>
           {a.status.replace('_', ' ')}
         </Badge>
         {a.model && (
-          <span className="ml-1 font-mono text-muted-foreground">{a.model}</span>
+          <span className="font-mono ml-1 text-white/55">{a.model}</span>
         )}
       </div>
       {a.prompt && (
-        <p className="line-clamp-2 text-[10px] leading-relaxed text-muted-foreground">
+        <p className="line-clamp-2 text-[11px] leading-relaxed text-white/55">
           {a.prompt.slice(0, 200)}
         </p>
       )}
-      <div className="flex items-center justify-between border-t border-border/30 pt-1.5 text-[9px] text-muted-foreground">
-        <span className="flex gap-2">
+      <div className="flex items-center justify-between border-t border-white/10 pt-2 text-[10px] text-white/45">
+        <span className="font-mono tabular flex gap-3">
           <span>✉ {a.dmCount}</span>
           <span>💬 {a.channelMessageCount}</span>
           <span>🔧 {a.toolCallCount}</span>
         </span>
-        <span className="text-primary opacity-0 transition-opacity group-hover:opacity-100">
+        <span className="text-white/85 opacity-0 transition-opacity group-hover:opacity-100">
           open →
         </span>
       </div>
@@ -463,7 +463,7 @@ function DmConversations({
 
   return (
     <div className="grid gap-0 md:grid-cols-[240px_1fr]">
-      <aside className="h-[460px] overflow-y-auto border-r border-border/40">
+      <aside className="h-[460px] overflow-y-auto border-r border-white/10">
         {conversations.map((c) => {
           const key = `${c.aId}::${c.bId}`;
           const last = c.msgs[c.msgs.length - 1]!;
@@ -472,45 +472,45 @@ function DmConversations({
               type="button"
               key={key}
               onClick={() => setSelectedKey(key)}
-              className={`block w-full border-b border-border/30 px-3 py-2 text-left text-xs transition-colors hover:bg-muted/30 ${
-                selectedKey === key ? 'bg-primary/10' : ''
+              className={`block w-full border-b border-white/5 px-3 py-2 text-left text-xs transition-colors hover:bg-white/5 ${
+                selectedKey === key ? 'bg-white/10' : ''
               }`}
             >
               <div className="flex items-center justify-between gap-1">
-                <span className="truncate font-mono text-[11px]">
+                <span className="font-mono truncate text-[11px] text-white/85">
                   {agentName(c.aId)} ↔ {agentName(c.bId)}
                 </span>
-                <Badge variant="outline" className="shrink-0 px-1 py-0 text-[9px]">
+                <span className="font-mono tabular shrink-0 rounded-full border border-white/15 bg-white/5 px-1.5 py-0 text-[10px] text-white/65">
                   {c.msgs.length}
-                </Badge>
+                </span>
               </div>
-              <p className="mt-0.5 line-clamp-1 text-[10px] text-muted-foreground">{last.content}</p>
+              <p className="mt-0.5 line-clamp-1 text-[10px] text-white/45">{last.content}</p>
             </button>
           );
         })}
       </aside>
       <ScrollArea className="h-[460px]">
         {selected ? (
-          <ul className="flex flex-col gap-1.5 p-4">
+          <ul className="flex flex-col gap-2 p-4">
             {selected.msgs.map((m) => (
               <li
                 key={m.id}
-                className={`rounded-md border p-2 text-xs ${
+                className={`rounded-2xl border p-3 text-xs ${
                   m.fromAgentId === selected.aId
-                    ? 'border-border/40 bg-muted/10'
-                    : 'ml-8 border-primary/30 bg-primary/5'
+                    ? 'border-white/10 bg-white/5'
+                    : 'ml-8 border-violet-300/25 bg-violet-500/10'
                 }`}
               >
-                <div className="mb-0.5 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
-                  <span className="font-mono text-foreground/80">{m.fromAgentName}</span>
-                  <span className="tabular-nums">{relativeTime(m.createdAt)}</span>
+                <div className="mb-0.5 flex items-center justify-between gap-2 text-[10px] text-white/45">
+                  <span className="font-mono text-white/85">{m.fromAgentName}</span>
+                  <span className="font-mono tabular">{relativeTime(m.createdAt)}</span>
                 </div>
-                <p className="whitespace-pre-wrap break-words text-foreground/90">{m.content}</p>
+                <p className="whitespace-pre-wrap break-words text-white/85">{m.content}</p>
               </li>
             ))}
           </ul>
         ) : (
-          <p className="p-6 text-xs text-muted-foreground">select a conversation</p>
+          <p className="p-6 text-xs text-white/45">select a conversation</p>
         )}
       </ScrollArea>
     </div>

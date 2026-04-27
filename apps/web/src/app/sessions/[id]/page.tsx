@@ -17,7 +17,6 @@ import {
 } from '@/components/session/activity-feed-virtualized';
 import { SessionTabs } from '@/components/session/session-tabs';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { getSession, listSessionAgents, type SessionAgent, type SessionListItem } from '@/lib/api';
 import { usePollingInterval } from '@/lib/use-polling';
 
@@ -146,7 +145,7 @@ function SessionDashboard({ sessionId }: { sessionId: string }) {
   }
 
   return (
-    <main className="flex min-h-screen flex-col">
+    <main className="mx-auto flex min-h-screen max-w-[1400px] flex-col px-6">
       <SessionHeader
         session={session}
         sessionId={sessionId}
@@ -168,15 +167,15 @@ function SessionDashboard({ sessionId }: { sessionId: string }) {
           The legacy "Running tools" side panel was removed (FB-04): the same
           info is already surfaced as runningToolCallCount in the KPI strip
           and as live tool_call events in the activity feed itself. */}
-      <section className="grid grid-cols-12 gap-4 px-6 pt-4" style={{ minHeight: '520px' }}>
-        <div className="col-span-12 md:col-span-3 md:h-[520px]">
+      <section className="grid grid-cols-12 gap-4 pt-6" style={{ minHeight: '560px' }}>
+        <div className="col-span-12 md:col-span-3 md:h-[560px]">
           <AgentTree
             sessionId={sessionId}
             selectedAgentId={selectedAgentId}
             onSelect={setSelectedAgentId}
           />
         </div>
-        <div className="col-span-12 md:col-span-9 md:h-[520px]">
+        <div className="col-span-12 md:col-span-9 md:h-[560px]">
           {useVirtualizedFeed ? (
             <ActivityFeedVirtualized
               agentFilterId={selectedAgentId}
@@ -195,7 +194,7 @@ function SessionDashboard({ sessionId }: { sessionId: string }) {
 
       <SessionTabs sessionId={sessionId} />
 
-      <div className="sticky bottom-0 z-10 border-t border-border/60 bg-background/80 backdrop-blur">
+      <div className="sticky bottom-0 z-10 -mx-6 border-t border-white/10 bg-[#07060c]/80 px-6 backdrop-blur">
         <UserInputBar sessionId={sessionId} disabled={sessionEnded} />
       </div>
     </main>
@@ -204,46 +203,48 @@ function SessionDashboard({ sessionId }: { sessionId: string }) {
 
 function SessionNotFound({ sessionId }: { sessionId: string }) {
   return (
-    <main className="flex min-h-screen flex-col">
-      <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-border/60 bg-background/80 px-6 backdrop-blur">
-        <Link
-          href="/"
-          aria-label="Back to hub"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          hub
-        </Link>
+    <main className="mx-auto flex min-h-screen max-w-[1400px] flex-col px-6">
+      <header className="sticky top-0 z-30 -mx-6 px-6 pt-5">
+        <div className="glass ring-soft flex h-14 items-center gap-3 rounded-2xl border border-white/10 px-4">
+          <Link
+            href="/"
+            aria-label="Back to hub"
+            className="inline-flex items-center gap-1 text-[13px] text-white/70 transition-colors hover:text-white"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            hub
+          </Link>
+        </div>
       </header>
-      <section className="flex flex-1 items-center justify-center p-6">
-        <Card className="max-w-lg border-border/60 bg-card/40">
-          <CardContent className="flex flex-col items-center gap-4 py-10 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted/30">
-              <PlugZap className="h-6 w-6 text-muted-foreground" />
+      <section className="flex flex-1 items-center justify-center py-12">
+        <div className="glass ring-soft max-w-lg rounded-2xl border border-white/10 p-8">
+          <div className="flex flex-col items-center gap-4 text-center">
+            <div className="grad-accent grid size-12 place-items-center rounded-2xl shadow-soft-pop">
+              <PlugZap className="size-6 text-white" />
             </div>
             <div>
-              <h1 className="text-base font-semibold">Session not found</h1>
-              <p className="mt-1 text-sm text-muted-foreground">
+              <h1 className="text-[16px] font-semibold">Session not found</h1>
+              <p className="mt-1 text-[13px] text-white/55">
                 No session with id{' '}
-                <code className="rounded bg-muted/40 px-1 py-0.5 font-mono text-xs">
+                <code className="font-mono rounded bg-white/10 px-1 py-0.5 text-[11px]">
                   {sessionId.slice(0, 8)}…{sessionId.slice(-4)}
                 </code>{' '}
                 exists on this proxy.
               </p>
-              <p className="mt-3 text-xs text-muted-foreground">
+              <p className="mt-3 text-[12px] text-white/45">
                 Common causes: the UUID in the URL is truncated or copied from a different host, or the
                 session was deleted. Check the hub for the current list of sessions.
               </p>
             </div>
-            <Button asChild size="sm" variant="outline">
+            <Button asChild size="sm" variant="outline" className="border-white/15 bg-white/5 text-white hover:bg-white/10">
               <Link href="/">
                 <ArrowLeft className="mr-1 h-3.5 w-3.5" />
                 Back to hub
               </Link>
             </Button>
-            <p className="mt-1 break-all font-mono text-[10px] text-muted-foreground">{sessionId}</p>
-          </CardContent>
-        </Card>
+            <p className="font-mono mt-1 break-all text-[10px] text-white/35">{sessionId}</p>
+          </div>
+        </div>
       </section>
     </main>
   );

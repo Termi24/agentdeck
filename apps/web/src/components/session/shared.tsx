@@ -26,28 +26,62 @@ export function formatDuration(ms: number | null | undefined): string {
   return `${m}m${s.toString().padStart(2, '0')}s`;
 }
 
+/** Pill / badge classes per status — kept stable for back-compat across pages. */
 export function statusClasses(s: SessionStatus): string {
   switch (s) {
     case 'running':
     case 'waiting_tool':
-      return 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30';
+      return 'bg-emerald-400/15 text-emerald-200 border-emerald-300/30';
     case 'pending':
-      return 'bg-sky-500/15 text-sky-400 border-sky-500/30';
+      return 'bg-sky-400/15 text-sky-200 border-sky-300/30';
     case 'completed':
-      return 'bg-zinc-500/15 text-zinc-400 border-zinc-500/30';
+      return 'bg-white/5 text-white/60 border-white/10';
     case 'failed':
-      return 'bg-red-500/15 text-red-400 border-red-500/30';
+      return 'bg-rose-400/15 text-rose-200 border-rose-300/30';
     case 'cancelled':
-      return 'bg-amber-500/15 text-amber-400 border-amber-500/30';
+      return 'bg-amber-400/15 text-amber-200 border-amber-300/30';
   }
 }
 
+/** Outer-glow class per status — used on cards in the new style B redesign. */
+export function statusGlow(s: SessionStatus, isLive = false): string {
+  if (!isLive) return '';
+  switch (s) {
+    case 'running':
+    case 'waiting_tool':
+      return 'glow-emerald';
+    case 'pending':
+      return 'glow-cyan';
+    case 'failed':
+      return 'glow-rose';
+    case 'cancelled':
+      return 'glow-amber';
+    case 'completed':
+    default:
+      return '';
+  }
+}
+
+/** Accent dot color (per status, pulsing if live) for tiny indicators. */
+export function statusDotClass(s: SessionStatus): string {
+  switch (s) {
+    case 'running':
+    case 'waiting_tool':
+      return 'bg-emerald-300';
+    case 'pending':
+      return 'bg-sky-300';
+    case 'failed':
+      return 'bg-rose-300';
+    case 'cancelled':
+      return 'bg-amber-300';
+    case 'completed':
+    default:
+      return 'bg-white/40';
+  }
+}
+
+/** Pulsing emerald dot — used to signal "live data within the last few seconds". */
 export function LiveDot({ size = 'sm' }: { size?: 'sm' | 'md' }) {
   const cls = size === 'md' ? 'h-2.5 w-2.5' : 'h-2 w-2';
-  return (
-    <span className={`relative inline-block ${cls}`}>
-      <span className="absolute inset-0 animate-ping rounded-full bg-emerald-500/70" />
-      <span className="absolute inset-0 rounded-full bg-emerald-500" />
-    </span>
-  );
+  return <span className={`pulse-dot inline-block rounded-full bg-emerald-300 ${cls}`} aria-hidden />;
 }

@@ -41,25 +41,25 @@ export function TeamList({ projectId, sessions }: Props) {
   if (sessions.length === 0) return null;
 
   return (
-    <section className="px-6 pb-6">
-      <Card className="border-border/60 bg-card/40">
-        <CardHeader className="border-b border-border/40 px-4 py-3">
-          <CardTitle className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+    <section className="pb-6">
+      <Card className="glass ring-soft rounded-2xl border-white/10 bg-transparent">
+        <CardHeader className="border-b border-white/10 px-4 py-3">
+          <CardTitle className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-white/55">
             <Users className="h-3.5 w-3.5" />
             Teams in {projectId}
-            <Badge variant="outline" className="px-1.5 py-0 text-[9px]">
+            <span className="font-mono tabular ml-1 rounded-full border border-white/15 bg-white/5 px-1.5 py-0 text-[10px] text-white/65">
               {sessions.length}
-            </Badge>
+            </span>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <ul className="divide-y divide-border/30">
+          <ul className="divide-y divide-white/5">
             {ordered.map((s) => (
               <li key={s.id}>
                 <button
                   type="button"
                   onClick={() => setOpenTeamId(s.id)}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-xs transition-colors hover:bg-muted/30"
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-xs transition-colors hover:bg-white/5"
                 >
                   <span className="shrink-0">
                     {ACTIVE_STATUSES.includes(s.status) &&
@@ -70,21 +70,21 @@ export function TeamList({ projectId, sessions }: Props) {
                       <span
                         className={`inline-block h-2 w-2 rounded-full ${
                           ACTIVE_STATUSES.includes(s.status)
-                            ? 'bg-emerald-500'
+                            ? 'bg-emerald-300'
                             : s.status === 'failed'
-                              ? 'bg-red-500'
-                              : 'bg-zinc-600'
+                              ? 'bg-rose-400'
+                              : 'bg-white/30'
                         }`}
                       />
                     )}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium text-foreground">{s.title || s.id.slice(0, 8)}</p>
-                    <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
+                    <p className="truncate text-[13px] font-medium text-white">{s.title || s.id.slice(0, 8)}</p>
+                    <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10.5px] text-white/45">
                       <span>
                         {s.agentCount} agent{s.agentCount === 1 ? '' : 's'}
                         {s.runningAgentCount > 0 && (
-                          <span className="text-emerald-400"> · {s.runningAgentCount} running</span>
+                          <span className="text-emerald-200"> · {s.runningAgentCount} running</span>
                         )}
                       </span>
                       <span>started {relativeTime(s.startedAt)}</span>
@@ -93,13 +93,13 @@ export function TeamList({ projectId, sessions }: Props) {
                       )}
                     </p>
                   </div>
-                  <Badge variant="outline" className={`shrink-0 text-[9px] ${statusClasses(s.status)}`}>
+                  <Badge variant="outline" className={`rounded-full px-2 py-0 text-[10px] capitalize ${statusClasses(s.status)}`}>
                     {s.status.replace('_', ' ')}
                   </Badge>
-                  <Badge variant="outline" className="shrink-0 text-[9px]">
+                  <span className="font-mono inline-flex h-5 items-center rounded-full border border-white/15 bg-white/5 px-1.5 text-[10px] uppercase tracking-wider text-white/65">
                     {s.isBridge ? 'CLI' : 'SDK'}
-                  </Badge>
-                  <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+                  </span>
+                  <ArrowRight className="h-3.5 w-3.5 text-white/45" />
                 </button>
               </li>
             ))}
@@ -202,42 +202,42 @@ function TeamSheet({
 function TeamMemberCard({ agent, isRoot }: { agent: SessionAgent; isRoot: boolean }) {
   const active = ACTIVE_STATUSES.includes(agent.status);
   return (
-    <div className="rounded-md border border-border/60 bg-muted/10 p-3 text-xs">
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-xs">
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           {isRoot ? (
-            <Crown className="h-3.5 w-3.5 shrink-0 text-primary" />
+            <Crown className="h-3.5 w-3.5 shrink-0 text-amber-300" />
           ) : (
-            <span className="text-muted-foreground">└─</span>
+            <span className="text-white/45">└─</span>
           )}
-          <span className="truncate font-mono text-sm">{agent.name}</span>
+          <span className="font-mono truncate text-[13px] text-white">{agent.name}</span>
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {active && <LiveDot />}
-          <Badge variant="outline" className={`text-[9px] ${statusClasses(agent.status)}`}>
+          <Badge variant="outline" className={`rounded-full px-2 py-0 text-[10px] capitalize ${statusClasses(agent.status)}`}>
             {agent.status.replace('_', ' ')}
           </Badge>
           {agent.role && (
-            <Badge variant="outline" className="text-[9px]">
+            <Badge variant="outline" className="rounded-full border-white/15 bg-white/5 px-2 py-0 text-[10px] text-white/70">
               {agent.role}
             </Badge>
           )}
         </div>
       </div>
       {agent.model && (
-        <p className="mt-1 font-mono text-[10px] text-muted-foreground">{agent.model}</p>
+        <p className="font-mono mt-1 text-[10px] text-white/45">{agent.model}</p>
       )}
       {agent.prompt && (
         <details className="mt-2 text-[11px]">
-          <summary className="cursor-pointer text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground">
+          <summary className="cursor-pointer text-[10px] uppercase tracking-wider text-white/55 hover:text-white">
             instructions ({agent.prompt.length} chars)
           </summary>
-          <pre className="mt-2 max-h-[300px] overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted/20 p-2 font-mono text-[11px] leading-relaxed text-foreground/80">
+          <pre className="font-mono mt-2 max-h-[300px] overflow-auto whitespace-pre-wrap break-words rounded-2xl bg-white/5 p-3 text-[11px] leading-relaxed text-white/85">
             {agent.prompt}
           </pre>
         </details>
       )}
-      <div className="mt-2 flex items-center gap-3 text-[10px] text-muted-foreground">
+      <div className="font-mono tabular mt-2 flex items-center gap-3 text-[10px] text-white/45">
         <span>🔧 {agent.toolCallCount}</span>
         <span>💬 {agent.channelMessageCount}</span>
         <span>✉ {agent.dmCount}</span>

@@ -118,13 +118,13 @@ export function PlanningView({ sessionId }: { sessionId: string }) {
   }, [tasks]);
 
   if (loadError) {
-    return <p className="p-6 text-center text-xs text-red-400">failed to load tasks: {loadError}</p>;
+    return <p className="p-6 text-center text-xs text-rose-300">failed to load tasks: {loadError}</p>;
   }
   if (tasks.length === 0) {
     return (
-      <p className="p-6 text-center text-xs text-muted-foreground">
+      <p className="p-6 text-center text-xs text-white/55">
         no tasks planned yet — agents announce their schedule via{' '}
-        <code className="rounded bg-muted/30 px-1">task_plan</code>.
+        <code className="rounded bg-white/10 px-1">task_plan</code>.
       </p>
     );
   }
@@ -157,7 +157,7 @@ function SubTab({ value, icon, label }: { value: string; icon: React.ReactNode; 
   return (
     <TabsTrigger
       value={value}
-      className="h-8 gap-1.5 rounded-none border-b-2 border-transparent bg-transparent px-3 text-xs data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+      className="h-8 gap-1.5 rounded-full border border-transparent bg-transparent px-3 text-xs data-[state=active]:border-white/15 data-[state=active]:bg-white/10 data-[state=active]:text-white data-[state=active]:shadow-none"
     >
       {icon}
       {label}
@@ -173,20 +173,20 @@ function OverallProgress({
   totalTasks: number;
 }) {
   return (
-    <div className="rounded-md border border-border/60 bg-card/40 p-3">
+    <div className="rounded-md border glass ring-soft border-white/10 bg-transparent rounded-2xl p-3">
       <div className="mb-2 flex items-baseline justify-between gap-2">
-        <span className="text-[11px] uppercase tracking-wider text-muted-foreground">overall progress</span>
+        <span className="text-[11px] uppercase tracking-wider text-white/55">overall progress</span>
         <span className="text-2xl font-semibold tabular-nums">
-          {overall.pct}<span className="ml-1 text-base text-muted-foreground">%</span>
+          {overall.pct}<span className="ml-1 text-base text-white/55">%</span>
         </span>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-muted/30">
+      <div className="h-2 overflow-hidden rounded-full bg-white/10">
         <div
           className="h-full bg-gradient-to-r from-emerald-500 to-blue-500 transition-all duration-500"
           style={{ width: `${overall.pct}%` }}
         />
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-3 text-[10px] uppercase tracking-wider text-muted-foreground">
+      <div className="mt-2 flex flex-wrap items-center gap-3 text-[10px] uppercase tracking-wider text-white/55">
         <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-300">
           {overall.completed} done
         </Badge>
@@ -198,7 +198,7 @@ function OverallProgress({
             {overall.blocked} blocked
           </Badge>
         )}
-        <Badge variant="outline" className="border-zinc-500/30 bg-muted/10 text-zinc-300">
+        <Badge variant="outline" className="border-zinc-500/30 bg-white/5 text-zinc-300">
           {overall.planned} planned
         </Badge>
         <span>· {totalTasks} tasks total</span>
@@ -240,7 +240,7 @@ function GanttChartView({ tasks }: { tasks: AgentTaskItem[] }) {
   const showNow = now >= min && now <= max;
 
   return (
-    <div className="flex flex-col gap-2 rounded-md border border-border/60 bg-card/30 p-3">
+    <div className="flex flex-col gap-2 rounded-md border glass ring-soft border-white/10 bg-transparent rounded-2xl p-3">
       <TimeAxis min={min} max={max} />
       <div className="relative flex flex-col gap-3 pt-1">
         {showNow && (
@@ -311,9 +311,9 @@ function TimeAxis({ min, max }: { min: number; max: number }) {
       : `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}h`;
   });
   return (
-    <div className="grid grid-cols-[140px_1fr] gap-2 border-b border-border/30 pb-1">
+    <div className="grid grid-cols-[140px_1fr] gap-2 border-b border-white/10 pb-1">
       <div />
-      <div className="flex justify-between text-[9px] uppercase tracking-wider text-muted-foreground">
+      <div className="flex justify-between text-[9px] uppercase tracking-wider text-white/55">
         {labels.map((l, i) => (
           <span key={i}>{l}</span>
         ))}
@@ -352,8 +352,8 @@ function CalendarView({ tasks }: { tasks: AgentTaskItem[] }) {
               isToday ? 'border-emerald-500/40 ring-1 ring-emerald-500/20' : 'border-border/60'
             }`}
           >
-            <div className="flex items-baseline justify-between border-b border-border/30 pb-1">
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            <div className="flex items-baseline justify-between border-b border-white/10 pb-1">
+              <span className="text-[10px] uppercase tracking-wider text-white/55">
                 {date.toLocaleDateString([], { weekday: 'short' })}
               </span>
               <span className={`text-base font-semibold tabular-nums ${isToday ? 'text-emerald-400' : ''}`}>
@@ -397,10 +397,10 @@ function ProgressListView({ tasks }: { tasks: AgentTaskItem[] }) {
       {grouped.map(([agentId, g]) => {
         const avg = Math.round(g.rows.reduce((s, t) => s + t.progressPct, 0) / g.rows.length);
         return (
-          <div key={agentId} className="rounded-md border border-border/60 bg-card/30 p-3">
+          <div key={agentId} className="rounded-md border glass ring-soft border-white/10 bg-transparent rounded-2xl p-3">
             <div className="mb-2 flex items-baseline justify-between gap-2">
               <span className="font-mono text-sm text-foreground/90">{g.name}</span>
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              <span className="text-[10px] uppercase tracking-wider text-white/55">
                 {g.rows.length} task{g.rows.length > 1 ? 's' : ''} · {avg}% avg
               </span>
             </div>
@@ -409,10 +409,10 @@ function ProgressListView({ tasks }: { tasks: AgentTaskItem[] }) {
                 <li key={t.id} className="flex flex-col gap-1">
                   <div className="flex items-baseline justify-between gap-2 text-xs">
                     <span className="truncate">{t.title}</span>
-                    <span className="shrink-0 tabular-nums text-muted-foreground">{t.progressPct}%</span>
+                    <span className="shrink-0 tabular-nums text-white/55">{t.progressPct}%</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted/30">
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
                       <div
                         className={`h-full transition-all duration-500 ${
                           t.status === 'completed'

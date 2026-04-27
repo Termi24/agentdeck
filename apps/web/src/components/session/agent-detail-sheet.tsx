@@ -39,54 +39,51 @@ export function AgentDetailSheet({ sessionId, agent, onOpenChange }: Props) {
 
   return (
     <Sheet open={!!agent} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="flex w-[90vw] flex-col gap-0 p-0 sm:max-w-2xl">
+      <SheetContent side="right" className="flex w-[90vw] flex-col gap-0 border-white/10 bg-[#0a0814] p-0 sm:max-w-2xl">
         {agent && (
           <>
-            <SheetHeader className="border-b border-border/40 p-6 pb-4 text-left">
+            <SheetHeader className="border-b border-white/10 p-6 pb-4 text-left">
               <div className="flex items-start justify-between gap-3">
-                <SheetTitle className="flex items-center gap-2 font-mono text-base">
+                <SheetTitle className="font-mono flex items-center gap-2 text-base">
                   {active && <LiveDot />}
                   {agent.name}
                 </SheetTitle>
                 <div className="flex shrink-0 items-center gap-1">
-                  <Badge variant="outline" className={`text-[10px] ${statusClasses(agent.status)}`}>
+                  <Badge variant="outline" className={`rounded-full px-2 py-0 text-[10px] capitalize ${statusClasses(agent.status)}`}>
                     {agent.status.replace('_', ' ')}
                   </Badge>
                   {agent.role && (
-                    <Badge variant="outline" className="text-[10px]">
+                    <Badge variant="outline" className="rounded-full border-white/15 bg-white/5 px-2 py-0 text-[10px] text-white/70">
                       {agent.role}
                     </Badge>
                   )}
                   {agent.parentAgentId === null ? (
-                    <Badge variant="outline" className="text-[10px] text-primary">
+                    <Badge variant="outline" className="grad-accent rounded-full border-0 px-2 py-0 text-[10px] text-white">
                       orchestrator
                     </Badge>
                   ) : (
-                    <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                    <Badge variant="outline" className="rounded-full border-white/15 bg-white/5 px-2 py-0 text-[10px] text-white/70">
                       sub-agent
                     </Badge>
                   )}
                 </div>
               </div>
-              <SheetDescription className="flex flex-wrap gap-3 pt-1 text-[11px]">
+              <SheetDescription className="font-mono tabular flex flex-wrap gap-3 pt-1 text-[11px] text-white/55">
                 <span>
-                  started <span className="tabular-nums">{relativeTime(agent.startedAt)}</span>
+                  started {relativeTime(agent.startedAt)}
                 </span>
                 {agent.endedAt && (
                   <span>
-                    ended <span className="tabular-nums">{relativeTime(agent.endedAt)}</span>
+                    ended {relativeTime(agent.endedAt)}
                   </span>
                 )}
                 {agent.model && (
                   <span>
-                    model <span className="font-mono">{agent.model}</span>
+                    model {agent.model}
                   </span>
                 )}
                 <span>
-                  tokens{' '}
-                  <span className="font-mono tabular-nums">
-                    {agent.tokensIn.toLocaleString()}↓ {agent.tokensOut.toLocaleString()}↑
-                  </span>
+                  tokens {agent.tokensIn.toLocaleString()}↓ {agent.tokensOut.toLocaleString()}↑
                 </span>
               </SheetDescription>
             </SheetHeader>
@@ -106,40 +103,42 @@ export function AgentDetailSheet({ sessionId, agent, onOpenChange }: Props) {
                   <DetailStat label="id" mono value={agent.id.slice(0, 8)} />
                 </div>
 
-                <Separator />
+                <Separator className="bg-white/10" />
 
                 <section>
-                  <h3 className="mb-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                  <h3 className="mb-2 text-[10px] font-medium uppercase tracking-wider text-white/55">
                     Context / skill / prompt
                   </h3>
-                  <div className="rounded-md border border-border/60 bg-muted/20 p-3 font-mono text-[11px] leading-relaxed">
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
                     {agent.prompt ? (
-                      <pre className="whitespace-pre-wrap break-words">{agent.prompt}</pre>
+                      <pre className="font-mono whitespace-pre-wrap break-words text-[11.5px] leading-relaxed text-white/85">
+                        {agent.prompt}
+                      </pre>
                     ) : (
-                      <p className="italic text-muted-foreground">no prompt recorded</p>
+                      <p className="text-[12px] italic text-white/45">no prompt recorded</p>
                     )}
                   </div>
                 </section>
 
-                <Separator />
+                <Separator className="bg-white/10" />
 
                 <section>
-                  <h3 className="mb-2 flex items-center gap-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                  <h3 className="mb-2 flex items-center gap-2 text-[10px] font-medium uppercase tracking-wider text-white/55">
                     Direct messages
                     {agent.dmCount > 0 && (
-                      <Badge variant="outline" className="text-[9px]">
+                      <span className="font-mono tabular rounded-full border border-white/15 bg-white/5 px-1.5 py-0 text-[10px] text-white/70">
                         {agent.dmCount}
-                      </Badge>
+                      </span>
                     )}
                   </h3>
                   {loadingDms && dms.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">loading…</p>
+                    <p className="text-xs text-white/45">loading…</p>
                   ) : dms.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-white/45">
                       no direct messages involving this agent yet
                     </p>
                   ) : (
-                    <ul className="flex flex-col gap-1.5">
+                    <ul className="flex flex-col gap-2">
                       {dms.map((m) => (
                         <DmRow key={m.id} m={m} selfId={agent.id} />
                       ))}
@@ -171,17 +170,17 @@ function DetailStat({
   highlight?: boolean;
 }) {
   return (
-    <div className="rounded-md border border-border/50 bg-muted/20 px-2 py-1.5">
+    <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
       <p
-        className={`${mono ? 'font-mono' : 'tabular-nums'} text-sm font-semibold ${
-          highlight ? 'text-emerald-400' : 'text-foreground'
+        className={`${mono ? 'font-mono' : 'font-mono tabular'} text-[15px] font-semibold ${
+          highlight ? 'text-emerald-200' : 'text-white'
         }`}
       >
         {value}
       </p>
-      <p className="text-[9px] uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className="text-[9px] uppercase tracking-wider text-white/45">{label}</p>
       {subvalue !== undefined && subvalue > 0 && (
-        <p className="mt-0.5 text-[9px] text-emerald-400 tabular-nums">
+        <p className="font-mono tabular mt-0.5 text-[10px] text-emerald-200">
           {subvalue} {subLabel}
         </p>
       )}
@@ -193,21 +192,21 @@ function DmRow({ m, selfId }: { m: DirectMessage; selfId: string }) {
   const outgoing = m.fromAgentId === selfId;
   return (
     <li
-      className={`rounded-md border border-border/40 p-2 text-xs ${
-        outgoing ? 'bg-primary/5' : 'bg-muted/10'
+      className={`rounded-2xl border p-3 text-xs ${
+        outgoing ? 'border-violet-300/25 bg-violet-500/10' : 'border-white/10 bg-white/5'
       }`}
     >
-      <div className="mb-1 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+      <div className="mb-1 flex items-center justify-between gap-2 text-[10px] text-white/45">
         <span>
-          <span className="font-mono text-foreground/80">{m.fromAgentName}</span>
+          <span className="font-mono text-white/85">{m.fromAgentName}</span>
           <span className="mx-1">→</span>
-          <span className="font-mono text-foreground/60">
+          <span className="font-mono text-white/55">
             {outgoing ? m.toAgentId.slice(0, 8) : 'me'}
           </span>
         </span>
-        <span className="tabular-nums">{relativeTime(m.createdAt)}</span>
+        <span className="font-mono tabular">{relativeTime(m.createdAt)}</span>
       </div>
-      <p className="whitespace-pre-wrap break-words text-foreground/90">{m.content}</p>
+      <p className="whitespace-pre-wrap break-words text-white/85">{m.content}</p>
     </li>
   );
 }

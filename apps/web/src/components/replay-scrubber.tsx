@@ -12,24 +12,28 @@ export function ReplayScrubber() {
   const value = scrubIndex ?? max;
 
   return (
-    <div className="flex items-center gap-3 border-b border-border bg-card/60 px-6 py-2">
-      <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Replay</span>
+    <div className="glass ring-soft mt-3 flex items-center gap-3 rounded-2xl border border-white/10 px-4 py-2.5">
+      <span className="font-mono shrink-0 text-[10px] font-semibold uppercase tracking-wider text-white/55">
+        Replay
+      </span>
       <input
         type="range"
         min={0}
         max={max}
         value={value}
         onChange={(e) => setScrubIndex(Number(e.target.value))}
-        className="flex-1 accent-primary"
+        className="flex-1 accent-violet-400"
       />
-      <span className="shrink-0 font-mono text-xs text-muted-foreground">
+      <span className="font-mono tabular shrink-0 text-[11.5px] text-white/55">
         {value + 1} / {totalEvents}
       </span>
       <Button
         size="sm"
-        variant={isLive ? 'secondary' : 'default'}
         onClick={() => setScrubIndex(null)}
-        className={cn('shrink-0', isLive && 'pointer-events-none opacity-60')}
+        className={cn(
+          'h-7 shrink-0 rounded-full border-0 px-3 text-[11.5px] font-medium text-white shadow-soft-pop',
+          isLive ? 'pointer-events-none bg-white/10 text-white/55 shadow-none' : 'grad-accent',
+        )}
       >
         {isLive ? 'live' : '↩ back to live'}
       </Button>

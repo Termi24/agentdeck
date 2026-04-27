@@ -1,7 +1,6 @@
 'use client';
 import { useState, type FormEvent } from 'react';
-import { OctagonX } from 'lucide-react';
-import { Input } from '@/components/ui/input';
+import { OctagonX, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useSession } from '@/components/session-context';
 import { requestAgentCancel, submitUserInput } from '@/lib/session-api';
@@ -40,14 +39,26 @@ export function UserInputBar({ sessionId, disabled }: { sessionId: string; disab
   };
 
   return (
-    <form onSubmit={onSubmit} className="flex items-center gap-2 border-t border-border bg-card px-6 py-2">
-      <Input
-        placeholder="Inject a human message into the session (agents see it via await_user_input)…"
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        disabled={disabled}
-      />
-      <Button type="submit" size="sm" disabled={busy || disabled || !text.trim()}>Send</Button>
+    <form onSubmit={onSubmit} className="flex items-center gap-2 py-3">
+      <div className="glass ring-soft flex h-11 flex-1 items-center gap-2 rounded-full border border-white/10 px-4">
+        <input
+          type="text"
+          placeholder="Inject a human message into the session (agents see it via await_user_input)…"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          disabled={disabled}
+          className="flex-1 bg-transparent text-[13.5px] outline-none placeholder:text-white/40 disabled:opacity-50"
+        />
+      </div>
+      <Button
+        type="submit"
+        size="sm"
+        disabled={busy || disabled || !text.trim()}
+        className="grad-accent h-11 rounded-full border-0 px-4 text-[13px] font-medium text-white shadow-soft-pop disabled:opacity-50 disabled:shadow-none"
+      >
+        <Send className="size-3.5" />
+        Send
+      </Button>
       {hasPending && (
         <Button
           type="button"
@@ -56,6 +67,7 @@ export function UserInputBar({ sessionId, disabled }: { sessionId: string; disab
           onClick={onStop}
           disabled={busy || disabled}
           title="Annule tous les agents en attente d'input et leur dit explicitement de stopper."
+          className="h-11 rounded-full bg-rose-500/20 px-4 text-[13px] font-medium text-rose-200 ring-1 ring-rose-300/30 hover:bg-rose-500/30"
         >
           <OctagonX className="mr-1 h-3.5 w-3.5" />
           Stop
