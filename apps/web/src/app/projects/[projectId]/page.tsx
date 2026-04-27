@@ -69,16 +69,9 @@ export default function ProjectPage() {
     return () => clearInterval(h);
   }, []);
 
-  // `default` is the implicit catch-all bucket for CLI bridges that don't set
-  // AGENTDECK_PROJECT_ID — it has no semantic meaning of its own and its
-  // sessions are now visible on the hub via the inline Teams expander. So
-  // /projects/default is always redundant: redirect unconditionally to /.
-  // Real, named projects keep their /projects/[id] deep view (scoped KPIs +
-  // search + grid/list/table modes that the hub doesn't surface).
-  useEffect(() => {
-    if (projectId !== 'default') return;
-    router.replace('/');
-  }, [projectId, router]);
+  // /projects/default is killed at the Next.js config level (308 redirect to
+  // /, see apps/web/next.config.ts). The dynamic route below only ever
+  // renders for real, named projects.
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
