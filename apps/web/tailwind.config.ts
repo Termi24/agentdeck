@@ -43,7 +43,21 @@ const config: Config = {
         },
       },
       fontFamily: {
-        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+        sans: ['var(--font-sans)', 'Inter var', 'Inter', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-mono)', 'ui-monospace', 'JetBrains Mono', 'SFMono-Regular', 'Menlo', 'monospace'],
+      },
+      boxShadow: {
+        'glass-ring': 'inset 0 1px 0 rgba(255,255,255,0.06), 0 1px 0 rgba(0,0,0,0.4)',
+        'soft-pop': '0 8px 24px -8px rgba(168,85,247,0.6)',
+      },
+      animation: {
+        'pulse-dot': 'pulse-dot 1.6s ease-in-out infinite',
+      },
+      keyframes: {
+        'pulse-dot': {
+          '0%, 100%': { transform: 'scale(1)', opacity: '0.95' },
+          '50%': { transform: 'scale(1.35)', opacity: '0.55' },
+        },
       },
     },
   },

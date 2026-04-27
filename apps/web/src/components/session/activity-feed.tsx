@@ -38,12 +38,12 @@ export interface FeedItem {
 }
 
 export const TONE_CLASSES: Record<FeedItem['tone'], string> = {
-  blue: 'bg-sky-500/10 text-sky-400 border-sky-500/30',
-  purple: 'bg-violet-500/10 text-violet-400 border-violet-500/30',
-  emerald: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
-  amber: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
-  red: 'bg-red-500/10 text-red-400 border-red-500/30',
-  slate: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/30',
+  blue: 'bg-sky-400/10 text-sky-200 border-sky-300/30',
+  purple: 'bg-violet-400/10 text-violet-200 border-violet-300/30',
+  emerald: 'bg-emerald-400/10 text-emerald-200 border-emerald-300/30',
+  amber: 'bg-amber-400/10 text-amber-200 border-amber-300/30',
+  red: 'bg-rose-400/10 text-rose-200 border-rose-300/30',
+  slate: 'bg-white/5 text-white/65 border-white/15',
 };
 
 interface Props {
@@ -101,17 +101,17 @@ export function ActivityFeed({ agentFilterId, agentFilterName, onClearAgentFilte
   };
 
   return (
-    <Card className="flex h-full flex-col overflow-hidden border-border/60 bg-card/40">
-      <CardHeader className="space-y-2 border-b border-border/40 px-4 py-2.5">
+    <Card className="glass ring-soft flex h-full flex-col overflow-hidden rounded-2xl border-white/10 bg-transparent">
+      <CardHeader className="space-y-2 border-b border-white/10 px-4 py-2.5">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          <h2 className="text-[11px] font-medium uppercase tracking-wider text-white/55">
             Activity ({visible.length}
             {visible.length !== items.length && `/${items.length}`})
           </h2>
           {agentFilterId && (
             <button
               type="button"
-              className="text-[10px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] text-white/70 hover:bg-white/10 hover:text-white"
               onClick={onClearAgentFilter}
             >
               filter: {agentFilterName ?? agentFilterId.slice(0, 6)} ×
@@ -119,12 +119,12 @@ export function ActivityFeed({ agentFilterId, agentFilterName, onClearAgentFilte
           )}
         </div>
         <Tabs value={filter} onValueChange={(v) => setFilter(v as Filter)}>
-          <TabsList className="h-7 w-full justify-start bg-transparent p-0">
+          <TabsList className="h-7 w-full justify-start gap-1 bg-transparent p-0">
             {(['all', 'channel', 'tools', 'docs', 'tests', 'agents'] as const).map((f) => (
               <TabsTrigger
                 key={f}
                 value={f}
-                className="h-7 rounded-none border-b-2 border-transparent bg-transparent px-2 text-[11px] data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                className="h-7 rounded-full border border-transparent bg-transparent px-2.5 text-[11px] capitalize text-white/55 data-[state=active]:border-white/15 data-[state=active]:bg-white/10 data-[state=active]:text-white data-[state=active]:shadow-none"
               >
                 {f}
               </TabsTrigger>
@@ -136,7 +136,7 @@ export function ActivityFeed({ agentFilterId, agentFilterName, onClearAgentFilte
         <ScrollArea ref={scrollRef} className="h-full" onScrollCapture={onScroll}>
           <div className="flex flex-col">
             {visible.length === 0 ? (
-              <div className="p-6 text-center text-xs text-muted-foreground">
+              <div className="p-6 text-center text-[12px] text-white/45">
                 no activity yet — waiting for events…
               </div>
             ) : (
@@ -146,7 +146,12 @@ export function ActivityFeed({ agentFilterId, agentFilterName, onClearAgentFilte
         </ScrollArea>
         {!autoScroll && newSinceScroll > 0 && (
           <div className="absolute bottom-3 left-1/2 -translate-x-1/2">
-            <Button size="sm" variant="outline" className="h-7 gap-1 text-[11px]" onClick={jumpToLatest}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="grad-accent h-7 gap-1 rounded-full border-0 px-3 text-[11px] font-medium text-white shadow-soft-pop"
+              onClick={jumpToLatest}
+            >
               <ChevronDown className="h-3.5 w-3.5" />
               {newSinceScroll} new
             </Button>
@@ -160,22 +165,22 @@ export function ActivityFeed({ agentFilterId, agentFilterName, onClearAgentFilte
 export function FeedRow({ item }: { item: FeedItem }) {
   const Icon = item.icon;
   return (
-    <div className="flex items-start gap-3 border-b border-border/30 px-4 py-2.5 text-xs animate-in fade-in-0 slide-in-from-bottom-1 duration-150 last:border-0">
+    <div className="flex items-start gap-3 border-b border-white/5 px-4 py-2.5 text-[12.5px] animate-in fade-in-0 slide-in-from-bottom-1 duration-150 last:border-0">
       <div
-        className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border ${TONE_CLASSES[item.tone]}`}
+        className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border ${TONE_CLASSES[item.tone]}`}
       >
         <Icon className="h-3.5 w-3.5" />
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex items-baseline gap-2">
-          {item.fromAgentName && <span className="shrink-0 font-mono text-[11px] text-foreground/90">{item.fromAgentName}</span>}
-          <span className="truncate text-foreground/70">{item.title}</span>
-          <span className="ml-auto shrink-0 tabular-nums text-[10px] text-muted-foreground">{relativeTime(item.at)}</span>
+          {item.fromAgentName && <span className="font-mono shrink-0 text-[11px] text-white/85">{item.fromAgentName}</span>}
+          <span className="truncate text-white/70">{item.title}</span>
+          <span className="font-mono ml-auto shrink-0 text-[10px] tabular text-white/45">{relativeTime(item.at)}</span>
         </div>
-        {item.body && <p className="whitespace-pre-wrap break-words text-foreground/80">{item.body}</p>}
+        {item.body && <p className="whitespace-pre-wrap break-words text-white/85">{item.body}</p>}
         {item.rightBadge && (
           <div className="mt-1">
-            <Badge variant="outline" className="text-[10px] text-muted-foreground">
+            <Badge variant="outline" className="rounded-full border-white/15 bg-white/5 px-2 py-0 text-[10px] text-white/70">
               {item.rightBadge}
             </Badge>
           </div>

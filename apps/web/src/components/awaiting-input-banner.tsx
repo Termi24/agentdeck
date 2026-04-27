@@ -75,9 +75,9 @@ export function AwaitingInputBanner() {
     <div
       role="alert"
       aria-live="assertive"
-      className="sticky top-14 z-30 border-b-2 border-red-700/80 bg-red-600 text-white shadow-lg"
+      className="sticky top-[88px] z-20 mt-3 overflow-hidden rounded-2xl border border-rose-300/40 bg-gradient-to-br from-rose-600/90 to-rose-700/90 text-white shadow-[0_0_30px_-5px_rgba(244,63,94,0.55)] backdrop-blur"
     >
-      <div className="flex items-start gap-3 px-6 py-3">
+      <div className="flex items-start gap-3 px-5 py-3">
         <AlertTriangle
           className="mt-0.5 h-6 w-6 shrink-0 animate-pulse"
           aria-hidden
@@ -114,7 +114,7 @@ export function AwaitingInputBanner() {
           <button
             type="button"
             onClick={focusInput}
-            className="rounded-md bg-white/15 px-3 py-1.5 text-sm font-semibold ring-1 ring-white/30 transition hover:bg-white/25"
+            className="rounded-full bg-white/15 px-3.5 py-1.5 text-sm font-semibold ring-1 ring-white/30 transition hover:bg-white/25"
           >
             Répondre
           </button>
@@ -122,7 +122,7 @@ export function AwaitingInputBanner() {
             type="button"
             onClick={stopAll}
             disabled={cancelling}
-            className="inline-flex items-center gap-1.5 rounded-md bg-black/30 px-3 py-1.5 text-sm font-semibold ring-1 ring-white/40 transition hover:bg-black/50 disabled:opacity-60"
+            className="inline-flex items-center gap-1.5 rounded-full bg-black/30 px-3.5 py-1.5 text-sm font-semibold ring-1 ring-white/40 transition hover:bg-black/50 disabled:opacity-60"
             title="Demande l'arrêt immédiat de tous les agents en attente (request_agent_cancel + submit 'stop')"
           >
             <OctagonX className="h-4 w-4" />

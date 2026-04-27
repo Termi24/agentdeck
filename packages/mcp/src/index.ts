@@ -572,13 +572,17 @@ async function dispatch(name: ToolName, args: Record<string, unknown>): Promise<
       return `Spawned sub-agent "${args.name}" (id ${r.agentId}). Pass parentAgentId="${r.agentId}" to further nested agents, and call stop_agent({agentId:"${r.agentId}"}) when the work is done.`;
     }
     case 'stop_agent': {
-      const r = await proxy.stopAgent({
-        agentId: String(args.agentId ?? ''),
-        status: (args.status as 'completed' | 'failed' | 'cancelled') ?? 'completed',
+      // The proxy returns 204 No Content on success, so the response body is
+      // null — read inputs back to compose the human-readable confirmation.
+      const agentId = String(args.agentId ?? '');
+      const status = (args.status as 'completed' | 'failed' | 'cancelled') ?? 'completed';
+      await proxy.stopAgent({
+        agentId,
+        status,
         tokensIn: typeof args.tokensIn === 'number' ? args.tokensIn : undefined,
         tokensOut: typeof args.tokensOut === 'number' ? args.tokensOut : undefined,
       });
-      return `Sub-agent ${r.agentId} marked ${r.status}.`;
+      return `Sub-agent ${agentId} marked ${status}.`;
     }
     case 'task_plan': {
       const r = await proxy.taskPlan({

@@ -124,10 +124,10 @@ export function ActivityFeedVirtualized({
   );
 
   return (
-    <Card className="flex h-full flex-col overflow-hidden border-border/60 bg-card/40">
-      <CardHeader className="space-y-2 border-b border-border/40 px-4 py-2.5">
+    <Card className="glass ring-soft flex h-full flex-col overflow-hidden rounded-2xl border-white/10 bg-transparent">
+      <CardHeader className="space-y-2 border-b border-white/10 px-4 py-2.5">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          <h2 className="text-[11px] font-medium uppercase tracking-wider text-white/55">
             Activity ({visible.length}
             {visible.length !== items.length && `/${items.length}`})
             <span className="ml-2 text-[10px] opacity-50">[virtualized]</span>
@@ -135,7 +135,7 @@ export function ActivityFeedVirtualized({
           {agentFilterId && (
             <button
               type="button"
-              className="text-[10px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] text-white/70 hover:bg-white/10 hover:text-white"
               onClick={onClearAgentFilter}
             >
               filter: {agentFilterName ?? agentFilterId.slice(0, 6)} ×
@@ -143,12 +143,12 @@ export function ActivityFeedVirtualized({
           )}
         </div>
         <Tabs value={filter} onValueChange={(v) => setFilter(v as Filter)}>
-          <TabsList className="h-7 w-full justify-start bg-transparent p-0">
+          <TabsList className="h-7 w-full justify-start gap-1 bg-transparent p-0">
             {(['all', 'channel', 'tools', 'docs', 'tests', 'agents'] as const).map((f) => (
               <TabsTrigger
                 key={f}
                 value={f}
-                className="h-7 rounded-none border-b-2 border-transparent bg-transparent px-2 text-[11px] data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                className="h-7 rounded-full border border-transparent bg-transparent px-2.5 text-[11px] capitalize text-white/55 data-[state=active]:border-white/15 data-[state=active]:bg-white/10 data-[state=active]:text-white data-[state=active]:shadow-none"
               >
                 {f}
               </TabsTrigger>
@@ -158,7 +158,7 @@ export function ActivityFeedVirtualized({
       </CardHeader>
       <CardContent className="relative flex-1 overflow-hidden p-0">
         {visible.length === 0 ? (
-          <div className="p-6 text-center text-xs text-muted-foreground">
+          <div className="p-6 text-center text-[12px] text-white/45">
             no activity yet — waiting for events…
           </div>
         ) : (
@@ -175,7 +175,12 @@ export function ActivityFeedVirtualized({
         )}
         {!autoScroll && newSinceScroll > 0 && (
           <div className="absolute bottom-3 left-1/2 -translate-x-1/2">
-            <Button size="sm" variant="outline" className="h-7 gap-1 text-[11px]" onClick={jumpToLatest}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="grad-accent h-7 gap-1 rounded-full border-0 px-3 text-[11px] font-medium text-white shadow-soft-pop"
+              onClick={jumpToLatest}
+            >
               <ChevronDown className="h-3.5 w-3.5" />
               {newSinceScroll} new
             </Button>
