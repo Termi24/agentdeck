@@ -393,6 +393,35 @@ async function main() {
   console.log('proj : http://127.0.0.1:3000/projects/client-acme');
   console.log('sess : (click any card on the hub)');
   console.log('finds: http://127.0.0.1:3000/internal/findings');
+
+  // Demo / browse mode: keep all non-finalized bridge sessions alive by
+  // pinging their heartbeat endpoint every 30s. Without this, the proxy
+  // bridge-watchdog finalizes them after 90s of silence and they switch
+  // to "completed" in the hub. SIGINT (Ctrl+C) ends the loop cleanly.
+  if (process.argv.includes('--keep-alive')) {
+    const liveSessions = (await api('GET', '/sessions')).sessions
+      .filter((s) => s.isBridge && s.status === 'running')
+      .map((s) => s.id);
+    if (liveSessions.length === 0) return;
+    console.log(`\nkeep-alive: pinging ${liveSessions.length} bridge sessions every 30s. Ctrl+C to stop.\n`);
+    let cancelled = false;
+    process.on('SIGINT', () => {
+      cancelled = true;
+      console.log('\nstopping heartbeat keeper. Sessions will go to "completed" within 90s.');
+      process.exit(0);
+    });
+    while (!cancelled) {
+      for (const id of liveSessions) {
+        try {
+          await api('POST', `/sessions/${id}/heartbeat`, {});
+        } catch (e) {
+          process.stdout.write(`  heartbeat ${id.slice(0, 8)} failed: ${e.message}\n`);
+        }
+      }
+      process.stdout.write(`  · pinged ${liveSessions.length} sessions at ${new Date().toLocaleTimeString()}\n`);
+      await new Promise((r) => setTimeout(r, 30_000));
+    }
+  }
 }
 
 main().catch((e) => {
