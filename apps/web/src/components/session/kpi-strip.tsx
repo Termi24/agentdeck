@@ -1,5 +1,5 @@
 'use client';
-import { Users, Wrench, MessageSquare, FlaskConical } from 'lucide-react';
+import { CalendarRange, Users, Wrench, MessageSquare, FlaskConical } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import type { SessionListItem } from '@/lib/api';
@@ -7,18 +7,24 @@ import type { SessionListItem } from '@/lib/api';
 interface Props {
   session: SessionListItem | null;
   testBreakdown: { passed: number; failed: number; skipped: number };
+  planningBreakdown: { planned: number; inProgress: number; completed: number; blocked: number };
 }
 
-export function KpiStrip({ session, testBreakdown }: Props) {
+export function KpiStrip({ session, testBreakdown, planningBreakdown }: Props) {
   const a = session?.runningAgentCount ?? 0;
   const at = session?.agentCount ?? 0;
   const t = session?.runningToolCallCount ?? 0;
   const tt = session?.toolCallCount ?? 0;
   const msg = session?.channelMessageCount ?? 0;
   const docs = session?.docCount ?? 0;
+  const planTotal =
+    planningBreakdown.planned +
+    planningBreakdown.inProgress +
+    planningBreakdown.completed +
+    planningBreakdown.blocked;
 
   return (
-    <section aria-label="session kpis" className="grid grid-cols-2 gap-3 px-6 pt-4 md:grid-cols-4">
+    <section aria-label="session kpis" className="grid grid-cols-2 gap-3 px-6 pt-4 md:grid-cols-5">
       <Kpi
         icon={Users}
         label="sub-agents"
@@ -34,6 +40,13 @@ export function KpiStrip({ session, testBreakdown }: Props) {
         total={tt}
         highlight={t > 0}
         hint={t > 0 ? 'running now' : `${tt} completed`}
+      />
+      <Kpi
+        icon={CalendarRange}
+        label="planning"
+        value={planTotal}
+        highlight={planningBreakdown.inProgress > 0 || planningBreakdown.blocked > 0}
+        planning={planTotal > 0 ? planningBreakdown : undefined}
       />
       <Kpi icon={MessageSquare} label="channel" value={msg} hint={`${msg} message${msg === 1 ? '' : 's'}`} />
       <Kpi
@@ -59,6 +72,7 @@ function Kpi({
   highlight,
   hint,
   breakdown,
+  planning,
   suffix,
 }: {
   icon: LucideIcon;
@@ -68,6 +82,7 @@ function Kpi({
   highlight?: boolean;
   hint?: string;
   breakdown?: { passed: number; failed: number; skipped: number };
+  planning?: { planned: number; inProgress: number; completed: number; blocked: number };
   suffix?: React.ReactNode;
 }) {
   const display = total !== undefined && total !== value ? `${value}/${total}` : `${value}`;
@@ -98,6 +113,19 @@ function Kpi({
               <span className="text-emerald-400">{breakdown.passed}✓</span>
               {breakdown.failed > 0 && <span className="text-red-400">{breakdown.failed}✗</span>}
               {breakdown.skipped > 0 && <span className="text-muted-foreground">{breakdown.skipped}○</span>}
+            </div>
+          ) : planning ? (
+            <div className="mt-0.5 flex flex-wrap gap-2 text-[10px]">
+              {planning.inProgress > 0 && (
+                <span className="text-emerald-400">{planning.inProgress}▸</span>
+              )}
+              {planning.blocked > 0 && <span className="text-amber-400">{planning.blocked}!</span>}
+              {planning.completed > 0 && (
+                <span className="text-blue-400">{planning.completed}✓</span>
+              )}
+              {planning.planned > 0 && (
+                <span className="text-muted-foreground">{planning.planned}○</span>
+              )}
             </div>
           ) : hint ? (
             <span className="mt-0.5 text-[10px] text-muted-foreground">{hint}</span>

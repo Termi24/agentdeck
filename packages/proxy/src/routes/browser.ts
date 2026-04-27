@@ -4,7 +4,9 @@ import { z } from 'zod';
 import { errors as pwErrors } from 'playwright';
 import {
   disposeAgentContext,
+  getBrowserHeadlessMode,
   getPage,
+  isBrowserLaunched,
   listAgentContexts,
   recordScreenshot,
   resetAgentContext,
@@ -88,7 +90,12 @@ const ShotBody = z.object({
   fullPage: z.boolean().optional(),
   agentId: z.string().optional(),
 });
-const ContextBody = z.object({ agentId: z.string().min(1), reset: z.boolean().optional() });
+const ContextBody = z.object({
+  agentId: z.string().min(1),
+  reset: z.boolean().optional(),
+  /** UI launch mode for the session-level Browser. First call wins. */
+  headless: z.boolean().optional(),
+});
 
 export const registerBrowserRoutes: FastifyPluginAsync<{ eventBus: EventBus }> = async (app, { eventBus }) => {
   app.post('/sessions/:id/browser/navigate', async (request, reply) => {
@@ -280,10 +287,18 @@ export const registerBrowserRoutes: FastifyPluginAsync<{ eventBus: EventBus }> =
     const parsed = ContextBody.safeParse(request.body);
     if (!parsed.success) return reply.badRequest(parsed.error.message);
     try {
+      const headlessOpt = parsed.data.headless;
+      const beforeLaunched = isBrowserLaunched(sessionId);
       const page = parsed.data.reset
-        ? await resetAgentContext(sessionId, parsed.data.agentId)
-        : await getPage(sessionId, parsed.data.agentId);
-      return { ok: true, agentId: parsed.data.agentId, url: page.url() };
+        ? await resetAgentContext(sessionId, parsed.data.agentId, { headless: headlessOpt })
+        : await getPage(sessionId, parsed.data.agentId, { headless: headlessOpt });
+      return {
+        ok: true,
+        agentId: parsed.data.agentId,
+        url: page.url(),
+        headless: getBrowserHeadlessMode(sessionId) ?? true,
+        browserAlreadyLaunched: beforeLaunched,
+      };
     } catch (err) {
       return reply.internalServerError(sanitizePlaywrightError(err));
     }

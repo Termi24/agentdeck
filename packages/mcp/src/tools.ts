@@ -205,6 +205,14 @@ export const BrowserNewContextInput = z.object({
   agentId: z.string().min(1).optional(),
   /** When true, destroy any existing context for this agent before creating a new one. */
   reset: z.boolean().optional(),
+  /**
+   * UI launch mode. Playwright launches the Browser ONCE per session — the
+   * first call to any `browser_*` tool wins. Use this on the first
+   * `browser_new_context` of a UI campaign to launch windowed (`false`) so a
+   * human can watch the run, or stay headless (`true`, default) for speed.
+   * Subsequent calls are ignored if the browser is already launched.
+   */
+  headless: z.boolean().optional(),
 });
 export const BrowserDisposeContextInput = z.object({
   /** Override the agentId to dispose. Defaults to the calling agent's id. */

@@ -63,6 +63,15 @@ When the user asks to test, audit, QA, or "use agentdeck" on a project:
    read_methodology({ section: "phase-N" }) to load that phase's exact steps,
    gate criteria, anti-patterns and templates.
 
+3a. UI MODE — before the FIRST browser_* call (typically the start of Phase 4
+   isolated-ui-smoke or any UI persona), ASK the user via
+   await_user_input({ prompt: "Mode UI: 'headless' (rapide, invisible) ou
+   'windowed' (Chromium ouvert pour suivi visuel) ?", timeoutMs: 600000 }).
+   Pass the choice to the FIRST browser_new_context as
+   { headless: true | false }. Playwright launches the Browser ONCE per session
+   so this first call locks the mode for everyone — subsequent calls inherit.
+   Default if the user doesn't answer in time: headless.
+
 NON-NEGOTIABLE PRINCIPLES (read_methodology({section:"principles"}) for full text):
 - 1 persona = 1 isolated BrowserContext (browser_new_context({reset:true}) on first call)
 - Cartography before test (api_inventory)
@@ -75,6 +84,23 @@ NON-NEGOTIABLE PRINCIPLES (read_methodology({section:"principles"}) for full tex
 YOU ARE FREE to spawn as many sub-agents and define as many personas as you want
 for the project at hand. Personas are project-specific (an ERP needs different
 roles than a marketplace). The methodology imposes the principles, not the cast.
+
+TEAM COMMUNICATION — every agent (orchestrator + sub-agents) is part of a
+shared team and HAS A TEAM CHAT. Use it actively:
+- post_to_channel({content, kind?})       — broadcast to the whole team. Use for findings,
+                                             blockers, status updates, cross-cutting
+                                             observations. The whole team reads this.
+- read_channel({sinceMessageId?, limit?}) — pull the recent backlog. Sub-agents should
+                                             read at start-of-task and periodically
+                                             (every few tool calls) so they stay aware
+                                             of what their teammates discovered.
+- send_direct({toAgentId, content})       — private 1:1 between two specific agents
+                                             (e.g. orchestrator coordinating with one
+                                             persona). Goes into the DMs tab in the UI.
+- read_direct({withAgentId?})             — the receiving side of send_direct.
+
+The team chat is THE coordination surface — do not silo. Findings posted to the
+channel are visible to all teammates AND to the human watching the dashboard.
 
 CLOSURE GATE: agentdeck refuses end_campaign without submit_campaign_retrospective.
 Always submit a critical retrospective (whatWentWell / whatWentBadly / keyLearnings /
@@ -343,8 +369,13 @@ async function dispatch(name: ToolName, args: Record<string, unknown>): Promise<
       const r = await proxy.browserNewContext({
         agentId: typeof args.agentId === 'string' ? args.agentId : undefined,
         reset: typeof args.reset === 'boolean' ? args.reset : undefined,
+        headless: typeof args.headless === 'boolean' ? args.headless : undefined,
       });
-      return `Isolated browser context ready for agent ${r.agentId} (at ${r.url})`;
+      const mode = r.headless ? 'headless' : 'windowed';
+      const note = r.browserAlreadyLaunched && typeof args.headless === 'boolean'
+        ? ` (note: browser already launched in ${mode} mode — headless flag ignored)`
+        : '';
+      return `Isolated browser context ready for agent ${r.agentId} (${mode}) at ${r.url}${note}`;
     }
     case 'browser_dispose_context': {
       const r = await proxy.browserDisposeContext({

@@ -431,11 +431,15 @@ export class ProxyClient {
     );
   }
 
-  browserNewContext(opts: { agentId?: string; reset?: boolean }) {
-    return this.request<{ ok: true; agentId: string; url: string }>(
+  browserNewContext(opts: { agentId?: string; reset?: boolean; headless?: boolean }) {
+    return this.request<{ ok: true; agentId: string; url: string; headless: boolean; browserAlreadyLaunched: boolean }>(
       'POST',
       `/sessions/${this.requireSession()}/browser/context`,
-      { agentId: opts.agentId ?? this.requireAgent(), reset: opts.reset ?? false },
+      {
+        agentId: opts.agentId ?? this.requireAgent(),
+        reset: opts.reset ?? false,
+        ...(opts.headless !== undefined ? { headless: opts.headless } : {}),
+      },
     );
   }
   browserDisposeContext(opts: { agentId?: string }) {

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity,
+  Bug,
   FlaskConical,
   Folder,
   MessageSquare,
@@ -19,7 +20,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { ACTIVE_STATUSES, LiveDot, relativeTime, statusClasses } from '@/components/session/shared';
-import { listProjects, type ProjectListItem } from '@/lib/api';
+import { getFindingsSummary, listProjects, type FindingsSummary, type ProjectListItem } from '@/lib/api';
 import { usePollingInterval } from '@/lib/use-polling';
 
 const LIVE_WINDOW_MS = 10_000;
@@ -30,10 +31,16 @@ export default function HubPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'past'>('active');
 
+  const [findingsSummary, setFindingsSummary] = useState<FindingsSummary | null>(null);
+
   const refresh = useCallback(async () => {
     try {
-      const rows = await listProjects();
+      const [rows, summary] = await Promise.all([
+        listProjects(),
+        getFindingsSummary().catch(() => null),
+      ]);
       setProjects(rows);
+      setFindingsSummary(summary);
       setLoadError(null);
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : String(err));
@@ -84,7 +91,7 @@ export default function HubPage() {
 
   return (
     <main className="flex min-h-screen flex-col">
-      <Header />
+      <Header findingsOpenHigh={findingsSummary?.openHighSeverity ?? 0} />
       <GlobalKpiBar stats={globalStats} totalProjects={projects.length} />
 
       <section className="flex flex-wrap items-center gap-2 px-6 py-4">
@@ -160,7 +167,7 @@ export default function HubPage() {
   );
 }
 
-function Header() {
+function Header({ findingsOpenHigh }: { findingsOpenHigh: number }) {
   return (
     <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border/60 bg-background/80 px-6 backdrop-blur">
       <div className="flex items-center gap-3">
@@ -169,7 +176,7 @@ function Header() {
         </div>
         <div>
           <h1 className="text-sm font-semibold leading-tight">agentdeck</h1>
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">project hub</p>
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">all projects · cross-project hub</p>
         </div>
       </div>
       <nav className="flex items-center gap-3">
@@ -179,6 +186,27 @@ function Header() {
         >
           <FlaskConical className="h-3.5 w-3.5" />
           QA Campaigns
+        </Link>
+        <Link
+          href="/internal/findings"
+          className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
+            findingsOpenHigh > 0
+              ? 'border border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20'
+              : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'
+          }`}
+          title={
+            findingsOpenHigh > 0
+              ? `${findingsOpenHigh} open critical/error finding${findingsOpenHigh > 1 ? 's' : ''}`
+              : 'agentdeck self-bug-tracker'
+          }
+        >
+          <Bug className="h-3.5 w-3.5" />
+          Findings
+          {findingsOpenHigh > 0 && (
+            <span className="rounded-full bg-amber-500/30 px-1.5 text-[9px] tabular-nums">
+              {findingsOpenHigh}
+            </span>
+          )}
         </Link>
       </nav>
     </header>

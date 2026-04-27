@@ -5,6 +5,68 @@ and to the user vault under `01-Projects/agentdeck/03-Sprints/Recent-Releases.md
 where applicable. Version line items aligned across the 4 workspaces (root,
 proxy, mcp, shared, web) — single bump per release.
 
+## [Unreleased] — work landed 2026-04-27 on `main`
+
+> Amine UX/process batch — 10 items collected during a live session, all
+> patched in-place. Typecheck + tool-count invariant green; new migration
+> `0006_high_firebrand.sql` applied without restarting the running proxy.
+
+### Added — FB-01 stuck-agent watchdog
+
+- **`packages/proxy/src/services/agent-watchdog.ts`** — sweeps every 60 s. For every `running|pending|waiting_tool` agent, computes `lastEventAt` via correlated subquery (excluding self-emitted `agent.stuck.*`), excludes agents in `await_user_input`. **3 min** silent → emit `agent.stuck.warning` only (no DB write). **5 min** → single transaction: doc auto-published with full incident markdown + channel message `🚨 agent X silent N min — auto-cancel triggered` + idempotent `agent_cancel_requests` insert + `agent_incidents` row + `agent.stuck.intervention` event. State per-agent `{warned, intervened, lastSeenAt}` resets on fresh activity so re-deadlocks can be re-flagged. Sentinel actor `agentId='system:watchdog'`. Errors raised by the intervention transaction are reported to the FB-10 tracker.
+- **`apps/web/src/components/session/agent-tree.tsx`** — client-side vigie hook `useAgentStuckStatus` reading the SessionProvider event stream. Same 3 min / 5 min thresholds, computed independently — survives a dead backend (true "double watchdog" per the user spec). Adds a stuck badge `Nm` (orange / red) on each affected `AgentRow` with tooltip and tinted row background. Header shows `{stuckCount} stuck` aggregate.
+- **`apps/web/src/components/session/activity-feed.tsx`** — folds `agent.stuck.warning` (`CircleDashed` icon, amber tone) and `agent.stuck.intervention` (`XCircle`, red tone) into the unified feed.
+
+### Added — FB-10 self-bug-tracker (méta-agent)
+
+- **`packages/proxy/src/services/internal-bug-tracker.ts`** — `reportInternalFinding({severity, source, category, message, stack?, context?})`. Synchronous, idempotent. SHA-1 fingerprint of `${source}::${category}::${normalized message}` (UUIDs + digits collapsed) so repeat occurrences bump `occurrences` + `lastSeenAt`. Sanitization at capture time: strip ANSI, drop `file://` + Windows paths, redact `api_key|password|secret|token|bearer|Authorization|x-api-key` patterns, truncate to 500 chars. Last-resort behaviour: if the DB write itself fails, log to stderr — never throws out of the tracker.
+- **Auto-installed captures** in `server.ts` at boot: `process.on('uncaughtException')` + `unhandledRejection` + Fastify `onResponse` hook for every ≥ 500 response. The FB-01 watchdog also reports its own transaction failures. 4xx is the caller's fault and intentionally ignored.
+- **`packages/proxy/src/routes/internal-findings.ts`** — REST surface: `GET /internal/findings?status=&severity=&source=&limit=`, `GET /internal/findings/summary`, `PATCH /internal/findings/:id` (status / fixedInVersion), `DELETE /internal/findings/:id`.
+- **`apps/web/src/app/internal/findings/page.tsx`** — admin UI: 4-card summary strip (open / openHighSeverity / fixed / total) + filters status × severity, sortable table, click row → side-sheet (message + stack + context + fingerprint), action footer {triage, mark fixed, wontfix, purge}. Polls every 8 s.
+- **Findings badge** in the home header (`apps/web/src/app/page.tsx`) linking to `/internal/findings`, highlighted orange with a count when there are open `error|critical` findings.
+
+### Added — schema delta
+
+- **`agent_incidents`** table — id, sessionId (FK), agentId, severity (`warning|intervention`), stuckMinutes, snapshot JSON, actionTaken, incidentDocPath, createdAt. Indexed on sessionId + agentId. Storage of record for FB-01 5-min interventions; warnings are event-only.
+- **`internal_findings`** table — id, fingerprint (indexed), severity (`info|warn|error|critical`), source (`proxy|mcp|browser|watchdog|ui|other`), category, message (≤ 500 chars sanitized), stack, context JSON, occurrences, status (`open|triaged|fixed|wontfix`, indexed), fixedInVersion, firstSeenAt, lastSeenAt (indexed).
+- **2 new event types**: `agent.stuck.warning`, `agent.stuck.intervention`. The FB-10 self-bug-tracker is intentionally NOT a session-scoped event — findings can occur outside any session (boot exception, watchdog tick).
+- Migration `packages/shared/src/db/migrations/0006_high_firebrand.sql`.
+
+### Added — FB-03 Teams view per project
+
+- **`apps/web/src/components/projects/team-list.tsx`** — section "Teams in {projectId}" on the project page. One row per session = one team (read-only per user choice). Click → side-sheet (`TeamSheet`) listing the orchestrator + sub-agents with name/role/status/model + collapsible full prompt + per-agent stats {tools, channel, dms}. Reuses `LiveDot`/`statusClasses`/`relativeTime` from `session/shared`.
+
+### Added — FB-07 headless / windowed prompt for UI campaigns
+
+- **`mcp__agentdeck__browser_new_context`** now accepts an optional `headless: boolean` field. The first call to any `browser_*` tool in a session locks the Browser launch mode (Playwright constraint). The response reports the resolved `headless` and `browserAlreadyLaunched: boolean` so the caller can confirm whether their flag took effect.
+- **`packages/proxy/src/services/browser-manager.ts`** — `tryLaunch(headless)`, `openFor` accepts `{ headless? }`, new `headlessMap` for synchronous reads, exports `isBrowserLaunched` + `getBrowserHeadlessMode`. `getPage` and `resetAgentContext` propagate the option.
+- **`SERVER_INSTRUCTIONS`** step **3a. UI MODE** — orchestrators must call `await_user_input` before the first `browser_*` to ask "headless or windowed", then forward to `browser_new_context({ headless })`.
+
+### Added — FB-05 team-chat awareness
+
+- **`SERVER_INSTRUCTIONS`** new section **TEAM COMMUNICATION** explicitly lists `post_to_channel` / `read_channel` / `send_direct` / `read_direct` with usage cues so spawned agents know they have a shared chat for findings, blockers, status updates. Before this, agents siloed themselves because the methodology principles only mentioned the channel as one bullet.
+
+### Added — FB-02 Planning surfaced in the KPI strip
+
+- **`apps/web/src/components/session/kpi-strip.tsx`** — 5th KPI **Planning** with breakdown `▸ in_progress · ! blocked · ✓ completed · ○ planned`, computed live from `agent.task.*` events folded in `apps/web/src/app/sessions/[id]/page.tsx`. Grid switches from `md:grid-cols-4` → `md:grid-cols-5`. The Planning tab in row 3 already existed; the KPI elevates it so the surface isn't missed.
+
+### Changed
+
+- **`apps/web/src/app/page.tsx`** — header subtitle "all projects · cross-project hub" (was "project hub"); Findings badge link in the nav.
+- **`apps/web/src/app/projects/[projectId]/page.tsx`** — auto-redirects `/projects/default` → `/` when `default` is the only project (FB-09: collapses the implicit-bucket duplicate). Header breadcrumb is now a text "← All projects" link (was an icon-only chevron). Subtitle dynamic: `{N} sessions · scoped to this project`.
+- **`apps/web/src/app/sessions/[id]/page.tsx`** — removed the `RunningTools` 3rd-column panel (FB-04: redundant with the KPI strip + tool_call entries in the feed). `ActivityFeed` now spans `md:col-span-9`.
+- **`apps/web/src/components/session/session-tabs.tsx`** — Tabs in controlled mode with `requestAnimationFrame` scroll-Y restore + `min-h-[480px]` on `CardContent` (FB-08: clicking a tab no longer makes the page jump to the top). Tests / Channel / DMs scrollers use `h-[460px]` instead of `max-h-[400px]` so the radix viewport gets a resolved height (FB-06).
+
+### Fixed
+
+- **FB-06** Tests tab not scrollable on overflow (radix viewport height didn't propagate from a `max-h`-only ancestor).
+- **FB-08** Page jumps to the top on tab change (caused by tab content height mismatch shrinking the page below the user's scroll position).
+- **FB-09** `/projects/default` and `/` showing the same data when `default` was the implicit bucket.
+
+### Vault
+
+- **`01-Projects/agentdeck/06-Tests-QA/FEEDBACK-2026-04-27-amine-ux-batch.md`** — full backlog + per-item architecture notes, status table, files-touched index, validation checklist.
+
 ## [0.0.8] — 2026-04-26
 
 ### Added

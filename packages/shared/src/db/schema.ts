@@ -393,3 +393,90 @@ export type CampaignRetrospective = typeof campaignRetrospectives.$inferSelect;
 export type NewCampaignRetrospective = typeof campaignRetrospectives.$inferInsert;
 export type AgentTask = typeof agentTasks.$inferSelect;
 export type NewAgentTask = typeof agentTasks.$inferInsert;
+
+/**
+ * Stuck-agent watchdog incidents (FB-01). The agent-watchdog service ticks
+ * every 60 s and writes one row each time an agent crosses the 5-minute
+ * intervention threshold. The 3-minute "warning" tier is event-only
+ * (`agent.stuck.warning`) — no row is written for warnings to keep this
+ * table to actionable incidents only.
+ *
+ * `severity` is "warning" or "intervention" — but in practice only
+ * "intervention" rows land here today. The column is kept open for future
+ * tiers (e.g. a hard 7-min stop_agent escalation) without a migration.
+ */
+export const agentIncidents = sqliteTable(
+  'agent_incidents',
+  {
+    id: text('id').primaryKey(),
+    sessionId: text('session_id')
+      .notNull()
+      .references(() => sessions.id, { onDelete: 'cascade' }),
+    agentId: text('agent_id').notNull(),
+    severity: text('severity', { enum: ['warning', 'intervention'] }).notNull(),
+    /** Wall-clock minutes the agent had been silent at trigger time. */
+    stuckMinutes: integer('stuck_minutes').notNull(),
+    /** Snapshot JSON: lastEventType, lastEventAt, runningToolCalls, agentStatus, etc. */
+    snapshot: text('snapshot', { mode: 'json' }).notNull(),
+    /**
+     * What the watchdog did. Values include: `none` (warning tier),
+     * `cancel_requested`, `force_stopped`, `await_user_input`. Free-form text
+     * to leave room for future strategies.
+     */
+    actionTaken: text('action_taken').notNull(),
+    /** UUID of the doc auto-published with the incident report, if any. */
+    incidentDocPath: text('incident_doc_path'),
+    createdAt: text('created_at').notNull().default(sql`(current_timestamp)`),
+  },
+  (table) => ({
+    sessionIdx: index('agent_incidents_session_idx').on(table.sessionId),
+    agentIdx: index('agent_incidents_agent_idx').on(table.agentId),
+  }),
+);
+
+/**
+ * Internal bug tracker (FB-10). The `internal-bug-tracker` service captures
+ * proxy 5xx, uncaught exceptions, zod parse failures, Playwright crashes,
+ * watchdog interventions, etc. into a queryable, dedup-by-fingerprint store.
+ *
+ * `fingerprint` = SHA-1 of `${source}::${category}::${normalized message}`.
+ * Repeat occurrences of the same bug bump `occurrences` + `lastSeenAt`
+ * instead of inserting a new row. Privacy-first: prompts and message bodies
+ * are truncated to 500 chars at capture time, never stored full.
+ */
+export const internalFindings = sqliteTable(
+  'internal_findings',
+  {
+    id: text('id').primaryKey(),
+    fingerprint: text('fingerprint').notNull(),
+    severity: text('severity', { enum: ['info', 'warn', 'error', 'critical'] }).notNull(),
+    source: text('source', { enum: ['proxy', 'mcp', 'browser', 'watchdog', 'ui', 'other'] }).notNull(),
+    category: text('category').notNull(),
+    /** First 500 chars of the error message — redacted/truncated upstream. */
+    message: text('message').notNull(),
+    /** Trimmed stack trace (paths sanitized, ANSI stripped). */
+    stack: text('stack'),
+    /** JSON dictionary of extra context (route, statusCode, agentId, …). */
+    context: text('context', { mode: 'json' }),
+    occurrences: integer('occurrences').notNull().default(1),
+    /** open → triaged → fixed (or wontfix). Default "open". */
+    status: text('status', { enum: ['open', 'triaged', 'fixed', 'wontfix'] })
+      .notNull()
+      .default('open'),
+    /** Optional version/commit where the user marks this fixed. */
+    fixedInVersion: text('fixed_in_version'),
+    firstSeenAt: text('first_seen_at').notNull().default(sql`(current_timestamp)`),
+    lastSeenAt: text('last_seen_at').notNull().default(sql`(current_timestamp)`),
+  },
+  (table) => ({
+    fingerprintIdx: index('internal_findings_fingerprint_idx').on(table.fingerprint),
+    statusIdx: index('internal_findings_status_idx').on(table.status),
+    severityIdx: index('internal_findings_severity_idx').on(table.severity),
+    lastSeenIdx: index('internal_findings_last_seen_idx').on(table.lastSeenAt),
+  }),
+);
+
+export type AgentIncident = typeof agentIncidents.$inferSelect;
+export type NewAgentIncident = typeof agentIncidents.$inferInsert;
+export type InternalFinding = typeof internalFindings.$inferSelect;
+export type NewInternalFinding = typeof internalFindings.$inferInsert;

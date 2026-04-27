@@ -64,7 +64,7 @@ Every session page has a slider below the header. Drag it to rewind the UI to an
 - Node 22, TypeScript 5.7, pnpm 9, Turborepo 2.
 - **Proxy** (`packages/proxy`): Fastify 5 + Socket.IO 4 + `@anthropic-ai/claude-agent-sdk` + Drizzle ORM + better-sqlite3 + Playwright 1.59.
 - **MCP** (`packages/mcp`): `@modelcontextprotocol/sdk` stdio — spawned per session, 47 tools (count derived from `TOOL_DEFINITIONS.length`).
-- **Shared** (`packages/shared`): Drizzle schema (19 tables) + zod event contracts (25 event types, zod 4 native JSON Schema).
+- **Shared** (`packages/shared`): Drizzle schema (21 tables) + zod event contracts (27 event types, zod 4 native JSON Schema).
 - **Web** (`apps/web`): Next.js 15 App Router + React 19 + Tailwind 4 + shadcn/ui + `dockview-react` + react-window v2 (virtualized activity feed above 500 events).
 
 ## Layout
@@ -74,7 +74,7 @@ apps/
   web/                      Next.js UI
   desktop/                  Tauri 2 shell (deferred — see apps/desktop/README.md)
 packages/
-  shared/                   Drizzle schema (19 tables) + zod events (25 types)
+  shared/                   Drizzle schema (21 tables) + zod events (27 types)
   proxy/                    REST + Socket.IO + Playwright + SDK wrapper
                             + multi-agent registry + sdk-attribution middleware
   mcp/                      MCP stdio server (47 tools, dist/ rebuilt by prepare hook)
@@ -112,4 +112,4 @@ The SDK reads `~/.claude/` credentials; no `ANTHROPIC_API_KEY` needed. The secre
 
 ## Releases
 
-Versioned in `CHANGELOG.md`. Latest: **v0.0.8** — sub-agent attribution forward-compat, virtualized activity feed, husky/CI invariant lock-in, audit/ artefacts committed.
+Versioned in `CHANGELOG.md`. Latest: **v0.0.8** — sub-agent attribution forward-compat, virtualized activity feed, husky/CI invariant lock-in, audit/ artefacts committed. **Unreleased on `main`**: stuck-agent watchdog (3 min warning / 5 min auto-cancel + incident doc), self-bug-tracker (`/internal/findings`), Teams view per project, Planning KPI in the session strip, headless prompt for UI campaigns.

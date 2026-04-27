@@ -111,10 +111,27 @@ export function SessionTabs({ sessionId }: { sessionId: string }) {
     planning: planningCount,
   };
 
+  // Controlled value so we can capture/restore scrollY around tab switches.
+  // Without this, switching from a tall tab (e.g. Tests with many rows) to a
+  // short one (e.g. empty Planning) shrinks page height, the browser clamps
+  // scrollY, and the user perceives it as a "scroll to top" jump (FB-08).
+  // The min-h on CardContent below holds the page height constant for the
+  // common range, this handler covers the residual case.
+  const [tab, setTab] = useState('agents');
+  const onTabChange = (next: string) => {
+    if (typeof window === 'undefined') {
+      setTab(next);
+      return;
+    }
+    const y = window.scrollY;
+    setTab(next);
+    requestAnimationFrame(() => window.scrollTo({ top: y }));
+  };
+
   return (
     <section className="px-6 pb-6">
       <Card className="border-border/60 bg-card/40">
-        <Tabs defaultValue="agents">
+        <Tabs value={tab} onValueChange={onTabChange}>
           <CardHeader className="border-b border-border/40 px-4 py-2.5">
             <CardTitle className="sr-only">Session details</CardTitle>
             <TabsList className="h-8 w-full justify-start bg-transparent p-0">
@@ -127,7 +144,7 @@ export function SessionTabs({ sessionId }: { sessionId: string }) {
             </TabsList>
           </CardHeader>
 
-          <CardContent className="p-0">
+          <CardContent className="min-h-[480px] p-0">
             <TabsContent value="agents" className="m-0">
               {agents.length === 0 ? (
                 <EmptyHint text="no agents yet — waiting for the orchestrator to spawn" />
@@ -184,7 +201,10 @@ export function SessionTabs({ sessionId }: { sessionId: string }) {
               {tests.length === 0 ? (
                 <EmptyHint text="no test results reported yet" />
               ) : (
-                <ScrollArea className="max-h-[400px]">
+                // h-[460px] (not max-h) so the radix viewport gets a resolved
+                // height to scroll within. max-h alone left the viewport
+                // unconstrained and overflow never triggered (FB-06).
+                <ScrollArea className="h-[460px]">
                   <table className="w-full text-xs">
                     <thead className="sticky top-0 bg-card/90 text-[10px] uppercase tracking-wider text-muted-foreground">
                       <tr className="border-b border-border/40">
@@ -232,7 +252,7 @@ export function SessionTabs({ sessionId }: { sessionId: string }) {
               {messages.length === 0 ? (
                 <EmptyHint text="no channel messages yet" />
               ) : (
-                <ScrollArea className="max-h-[400px]">
+                <ScrollArea className="h-[460px]">
                   <ul className="flex flex-col">
                     {messages.map((m) => (
                       <li key={m.messageId} className="flex items-start gap-3 border-b border-border/30 px-4 py-2 text-xs last:border-0">
@@ -443,7 +463,7 @@ function DmConversations({
 
   return (
     <div className="grid gap-0 md:grid-cols-[240px_1fr]">
-      <aside className="max-h-[400px] overflow-y-auto border-r border-border/40">
+      <aside className="h-[460px] overflow-y-auto border-r border-border/40">
         {conversations.map((c) => {
           const key = `${c.aId}::${c.bId}`;
           const last = c.msgs[c.msgs.length - 1]!;
@@ -469,7 +489,7 @@ function DmConversations({
           );
         })}
       </aside>
-      <ScrollArea className="max-h-[400px]">
+      <ScrollArea className="h-[460px]">
         {selected ? (
           <ul className="flex flex-col gap-1.5 p-4">
             {selected.msgs.map((m) => (

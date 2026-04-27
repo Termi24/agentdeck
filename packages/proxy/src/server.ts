@@ -28,6 +28,9 @@ import { createEventBus } from './event-bus.js';
 import { initDb } from './db.js';
 import { sessionExists } from './persistence.js';
 import { reapOrphanBridgesOnBoot, startBridgeWatchdog } from './services/bridge-watchdog.js';
+import { startAgentWatchdog } from './services/agent-watchdog.js';
+import { installProcessHooks, reportInternalFinding } from './services/internal-bug-tracker.js';
+import { registerInternalFindingsRoutes } from './routes/internal-findings.js';
 import { registerSdkAttributionMiddleware } from './services/sdk-attribution.js';
 
 /**
@@ -76,6 +79,11 @@ export async function buildServer(): Promise<{ app: FastifyInstance; io: SocketI
   });
 
   initDb();
+
+  // FB-10 — install process-level error hooks (uncaughtException,
+  // unhandledRejection) so any unhandled async crash lands as a finding
+  // before potentially exiting the process.
+  installProcessHooks();
 
   // Restrict CORS to the local dashboard origins. The previous
   // `origin: true` reflected ANY caller's Origin header, which on a
@@ -159,6 +167,21 @@ export async function buildServer(): Promise<{ app: FastifyInstance; io: SocketI
   await app.register(registerCampaignsRoutes);
   await app.register(registerProjectRoutes);
   await app.register(registerAgentTaskRoutes, { eventBus });
+  await app.register(registerInternalFindingsRoutes);
+
+  // FB-10 — capture every Fastify response that escapes as 5xx as an
+  // internal finding. 4xx is the caller's fault and not interesting.
+  app.addHook('onResponse', async (request, reply) => {
+    if (reply.statusCode < 500) return;
+    reportInternalFinding({
+      severity: reply.statusCode >= 500 && reply.statusCode < 600 ? 'error' : 'warn',
+      source: 'proxy',
+      category: `http.${reply.statusCode}`,
+      message: `${request.method} ${request.url} → ${reply.statusCode}`,
+      stack: null,
+      context: { method: request.method, url: request.url, statusCode: reply.statusCode },
+    });
+  });
 
   // Finalize any bridge sessions still marked running from a prior proxy
   // run — a bridged CLI can no longer reach the new proxy instance, so
@@ -166,6 +189,14 @@ export async function buildServer(): Promise<{ app: FastifyInstance; io: SocketI
   const reaped = reapOrphanBridgesOnBoot(eventBus);
   if (reaped > 0) app.log.info(`bridge-watchdog: reaped ${reaped} orphan bridge session(s) at boot`);
   startBridgeWatchdog(eventBus, { info: (m) => app.log.info(m) });
+
+  // FB-01 — stuck-agent watchdog: 60s tick, 3-min warning + 5-min
+  // intervention. Independent of bridge-watchdog (which only watches
+  // bridge sessions for liveness).
+  startAgentWatchdog(eventBus, {
+    info: (m) => app.log.info(m),
+    warn: (m) => app.log.warn(m),
+  });
 
   return { app, io };
 }

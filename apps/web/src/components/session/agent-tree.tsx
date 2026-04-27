@@ -1,13 +1,68 @@
 'use client';
-import { useState } from 'react';
-import { ChevronRight, Info } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, ChevronRight, Info } from 'lucide-react';
+import type { AgentDeckEvent } from '@agentdeck/shared';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useSession } from '@/components/session-context';
 import { listSessionAgents, type SessionAgent } from '@/lib/api';
 import { usePollingInterval } from '@/lib/use-polling';
 import { AgentDetailSheet } from './agent-detail-sheet';
 import { ACTIVE_STATUSES, LiveDot, relativeTime, statusClasses } from './shared';
+
+type StuckLevel = 'ok' | 'warning' | 'intervention';
+const WARN_MIN = 3;
+const INTERVENE_MIN = 5;
+const SELF_TYPES = new Set(['agent.stuck.warning', 'agent.stuck.intervention']);
+
+/**
+ * Client-side vigie (FB-01). Reads the per-agent `agentId`-bearing events
+ * from the session event stream and computes stuck status in parallel with
+ * the backend watchdog. Same thresholds (3 min warning / 5 min intervention)
+ * — the user explicitly asked for redundancy ("double watchdog backend + UI")
+ * so even if the backend dies the badge still surfaces.
+ *
+ * Self-emitted events (`agent.stuck.*`) are excluded from `lastEventAt` so
+ * the watchdog speaking up doesn't reset its own clock.
+ */
+function useAgentStuckStatus(agents: SessionAgent[]): Map<string, { minutes: number; level: StuckLevel }> {
+  const { events } = useSession();
+  // Tick to refresh time-based decisions even between event arrivals.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const h = setInterval(() => setTick((t) => t + 1), 30_000);
+    return () => clearInterval(h);
+  }, []);
+
+  return useMemo(() => {
+    const lastByAgent = new Map<string, string>();
+    for (const e of events as ReadonlyArray<AgentDeckEvent>) {
+      if (SELF_TYPES.has(e.type)) continue;
+      const agentId = 'agentId' in e ? (e as { agentId: string }).agentId : null;
+      if (!agentId) continue;
+      const at = 'at' in e ? (e as { at: string }).at : null;
+      if (!at) continue;
+      const prev = lastByAgent.get(agentId);
+      if (!prev || prev < at) lastByAgent.set(agentId, at);
+    }
+    const out = new Map<string, { minutes: number; level: StuckLevel }>();
+    const now = Date.now();
+    for (const a of agents) {
+      if (!ACTIVE_STATUSES.includes(a.status)) continue;
+      const last = lastByAgent.get(a.id) ?? a.startedAt;
+      const t = Date.parse(last);
+      if (Number.isNaN(t)) continue;
+      const minutes = Math.floor((now - t) / 60_000);
+      let level: StuckLevel = 'ok';
+      if (minutes >= INTERVENE_MIN) level = 'intervention';
+      else if (minutes >= WARN_MIN) level = 'warning';
+      if (level !== 'ok') out.set(a.id, { minutes, level });
+    }
+    return out;
+  }, [agents, events]);
+}
 
 interface Props {
   sessionId: string;
@@ -35,6 +90,7 @@ export function AgentTree({ sessionId, selectedAgentId, onSelect }: Props) {
     [sessionId],
   );
 
+  const stuck = useAgentStuckStatus(agents);
   const roots = agents.filter((a) => a.parentAgentId === null);
   const childrenOf = (id: string) => agents.filter((a) => a.parentAgentId === id);
   const orphans = agents.filter(
@@ -42,6 +98,7 @@ export function AgentTree({ sessionId, selectedAgentId, onSelect }: Props) {
   );
 
   const runningCount = agents.filter((a) => ACTIVE_STATUSES.includes(a.status)).length;
+  const stuckCount = stuck.size;
 
   return (
     <>
@@ -52,6 +109,11 @@ export function AgentTree({ sessionId, selectedAgentId, onSelect }: Props) {
             <Badge variant="outline" className="px-1.5 py-0 text-[9px]">
               {runningCount}/{agents.length}
             </Badge>
+            {stuckCount > 0 && (
+              <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 px-1.5 py-0 text-[9px] text-amber-300">
+                {stuckCount} stuck
+              </Badge>
+            )}
           </CardTitle>
           {selectedAgentId && (
             <button
@@ -78,6 +140,7 @@ export function AgentTree({ sessionId, selectedAgentId, onSelect }: Props) {
                         a={r}
                         isRoot
                         selected={selectedAgentId === r.id}
+                        stuck={stuck.get(r.id) ?? null}
                         onSelect={() => onSelect(selectedAgentId === r.id ? null : r.id)}
                         onOpenDetail={() => setDetailAgent(r)}
                       />
@@ -87,6 +150,7 @@ export function AgentTree({ sessionId, selectedAgentId, onSelect }: Props) {
                           a={c}
                           isRoot={false}
                           selected={selectedAgentId === c.id}
+                          stuck={stuck.get(c.id) ?? null}
                           onSelect={() => onSelect(selectedAgentId === c.id ? null : c.id)}
                           onOpenDetail={() => setDetailAgent(c)}
                         />
@@ -99,6 +163,7 @@ export function AgentTree({ sessionId, selectedAgentId, onSelect }: Props) {
                       a={o}
                       isRoot={false}
                       selected={selectedAgentId === o.id}
+                      stuck={stuck.get(o.id) ?? null}
                       onSelect={() => onSelect(selectedAgentId === o.id ? null : o.id)}
                       onOpenDetail={() => setDetailAgent(o)}
                     />
@@ -122,12 +187,14 @@ function AgentRow({
   a,
   isRoot,
   selected,
+  stuck,
   onSelect,
   onOpenDetail,
 }: {
   a: SessionAgent;
   isRoot: boolean;
   selected: boolean;
+  stuck: { minutes: number; level: StuckLevel } | null;
   onSelect: () => void;
   onOpenDetail: () => void;
 }) {
@@ -136,7 +203,7 @@ function AgentRow({
     <div
       className={`group flex items-center gap-2 border-b border-border/30 px-3 py-2 text-xs transition-colors ${
         selected ? 'bg-primary/10' : 'hover:bg-muted/30'
-      } ${isRoot ? '' : 'pl-7'}`}
+      } ${isRoot ? '' : 'pl-7'} ${stuck?.level === 'intervention' ? 'bg-red-500/5' : stuck?.level === 'warning' ? 'bg-amber-500/5' : ''}`}
     >
       <button type="button" onClick={onSelect} className="flex min-w-0 flex-1 items-center gap-2 text-left">
         <span className="shrink-0">
@@ -160,6 +227,29 @@ function AgentRow({
         )}
       </button>
       <div className="flex shrink-0 items-center gap-1.5">
+        {stuck && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span
+                  className={`flex items-center gap-0.5 rounded-sm px-1 text-[9px] ${
+                    stuck.level === 'intervention'
+                      ? 'bg-red-500/15 text-red-400'
+                      : 'bg-amber-500/15 text-amber-400'
+                  }`}
+                >
+                  <AlertTriangle className="h-2.5 w-2.5" />
+                  {stuck.minutes}m
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">
+                {stuck.level === 'intervention'
+                  ? `Stuck for ${stuck.minutes} min — backend watchdog should auto-cancel`
+                  : `Silent for ${stuck.minutes} min — heads up`}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
         {a.dmCount > 0 && (
           <span className="rounded-sm bg-sky-500/15 px-1 text-[9px] text-sky-400" title="direct messages">
             ✉ {a.dmCount}

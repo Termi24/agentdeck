@@ -13,15 +13,22 @@ interface SessionBrowser {
   defaultPage: Page;
   /** Per-agent isolated contexts — each with its own cookies/localStorage/SW. */
   agentContexts: Map<string, { context: BrowserContext; page: Page }>;
+  /** Mode the Browser was launched in. Locked at first launch (Playwright
+   *  doesn't allow per-context override). Surfaced back through
+   *  `browser_new_context` so the caller can confirm what they got. */
+  headless: boolean;
 }
 
 const sessionsMap = new Map<string, Promise<SessionBrowser>>();
+// Tracked OUTSIDE the promise so callers can read it synchronously without
+// awaiting an in-flight launch.
+const headlessMap = new Map<string, boolean>();
 
-async function tryLaunch(): Promise<Browser> {
+async function tryLaunch(headless: boolean): Promise<Browser> {
   const errors: Error[] = [];
   for (const channel of ['chrome', 'msedge', undefined]) {
     try {
-      return await chromium.launch({ headless: true, channel });
+      return await chromium.launch({ headless, channel });
     } catch (err) {
       errors.push(err instanceof Error ? err : new Error(String(err)));
     }
@@ -29,22 +36,35 @@ async function tryLaunch(): Promise<Browser> {
   throw new Error(`failed to launch any chromium channel: ${errors.map((e) => e.message).join(' | ')}`);
 }
 
-async function openFor(sessionId: string): Promise<SessionBrowser> {
+async function openFor(sessionId: string, opts?: { headless?: boolean }): Promise<SessionBrowser> {
   const existing = sessionsMap.get(sessionId);
   if (existing) return existing;
+  const headless = opts?.headless ?? true;
+  headlessMap.set(sessionId, headless);
   const promise = (async () => {
-    const browser = await tryLaunch();
+    const browser = await tryLaunch(headless);
     const defaultContext = await browser.newContext();
     const defaultPage = await defaultContext.newPage();
-    return { browser, defaultContext, defaultPage, agentContexts: new Map() };
+    return { browser, defaultContext, defaultPage, agentContexts: new Map(), headless };
   })();
   sessionsMap.set(sessionId, promise);
   try {
     return await promise;
   } catch (err) {
     sessionsMap.delete(sessionId);
+    headlessMap.delete(sessionId);
     throw err;
   }
+}
+
+/** Whether the per-session Browser has been launched (or is launching). */
+export function isBrowserLaunched(sessionId: string): boolean {
+  return sessionsMap.has(sessionId);
+}
+
+/** Headless mode the Browser was launched with (or null if not launched). */
+export function getBrowserHeadlessMode(sessionId: string): boolean | null {
+  return headlessMap.get(sessionId) ?? null;
 }
 
 /**
@@ -54,8 +74,12 @@ async function openFor(sessionId: string): Promise<SessionBrowser> {
  * session. Without `agentId`, falls back to the session-level default page
  * (back-compat with the original single-context behaviour).
  */
-export async function getPage(sessionId: string, agentId?: string): Promise<Page> {
-  const b = await openFor(sessionId);
+export async function getPage(
+  sessionId: string,
+  agentId?: string,
+  opts?: { headless?: boolean },
+): Promise<Page> {
+  const b = await openFor(sessionId, opts);
   if (!agentId) return b.defaultPage;
   const existing = b.agentContexts.get(agentId);
   if (existing) return existing.page;
@@ -70,8 +94,12 @@ export async function getPage(sessionId: string, agentId?: string): Promise<Page
  * previous cookies/localStorage. Useful when impersonating a different
  * persona between test phases.
  */
-export async function resetAgentContext(sessionId: string, agentId: string): Promise<Page> {
-  const b = await openFor(sessionId);
+export async function resetAgentContext(
+  sessionId: string,
+  agentId: string,
+  opts?: { headless?: boolean },
+): Promise<Page> {
+  const b = await openFor(sessionId, opts);
   const existing = b.agentContexts.get(agentId);
   if (existing) {
     try {
@@ -113,6 +141,7 @@ export async function closeFor(sessionId: string): Promise<void> {
   const existing = sessionsMap.get(sessionId);
   if (!existing) return;
   sessionsMap.delete(sessionId);
+  headlessMap.delete(sessionId);
   try {
     const b = await existing;
     for (const { context } of b.agentContexts.values()) {

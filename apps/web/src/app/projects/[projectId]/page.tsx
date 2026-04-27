@@ -25,8 +25,10 @@ import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { ACTIVE_STATUSES, LiveDot } from '@/components/session/shared';
 import { SessionCard, SessionTable } from '@/components/hub/session-views';
+import { TeamList } from '@/components/projects/team-list';
 import {
   listProjectSessions,
+  listProjects,
   startSession,
   type SessionListItem,
 } from '@/lib/api';
@@ -69,6 +71,27 @@ export default function ProjectPage() {
     const h = setInterval(() => setTick((t) => t + 1), 1_000);
     return () => clearInterval(h);
   }, []);
+
+  // FB-09: when "default" is the only project (the implicit auto-bucket),
+  // /projects/default and / show the same data and the user perceives them as
+  // duplicates. Collapse them by redirecting in that single case. Any time a
+  // second project exists the project page becomes a real filter and the
+  // redirect is skipped.
+  useEffect(() => {
+    if (projectId !== 'default') return;
+    let cancelled = false;
+    void listProjects()
+      .then((rows) => {
+        if (cancelled) return;
+        if (rows.length <= 1) router.replace('/');
+      })
+      .catch(() => {
+        /* ignore — keep showing the project page on transient API failure */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, router]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -125,17 +148,19 @@ export default function ProjectPage() {
         <div className="flex items-center gap-3">
           <Link
             href="/"
-            className="inline-flex items-center gap-1 rounded-md p-1.5 text-muted-foreground hover:bg-muted/40 hover:text-foreground"
-            aria-label="back to hub"
+            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground"
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-3.5 w-3.5" />
+            All projects
           </Link>
           <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10">
             <Plug className="h-4 w-4 text-primary" />
           </div>
           <div>
             <h1 className="text-sm font-semibold leading-tight font-mono">{projectId}</h1>
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">project sessions</p>
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              {sessions.length} session{sessions.length !== 1 ? 's' : ''} · scoped to this project
+            </p>
           </div>
         </div>
       </header>
@@ -273,6 +298,8 @@ export default function ProjectPage() {
           </Card>
         </div>
       )}
+
+      <TeamList projectId={projectId} sessions={sessions} />
 
       <section className="flex-1 px-6 pb-10">
         {filtered.length === 0 ? (

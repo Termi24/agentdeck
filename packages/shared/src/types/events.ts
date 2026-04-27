@@ -250,6 +250,48 @@ export const AgentTaskCompleted = z.object({
   at: z.iso.datetime(),
 });
 
+// Stuck-agent watchdog (FB-01). Two events: a soft warning at 3 min of
+// silence and an intervention at 5 min. The backend service is the actor;
+// the UI vigie reads these events to badge the AgentTree and append to the
+// ActivityFeed. Each is emitted at MOST ONCE per stuck episode (the service
+// tracks per-agent state) so the watchdog stays "silencieux" between ticks.
+export const AgentStuckWarning = z.object({
+  type: z.literal('agent.stuck.warning'),
+  sessionId: z.uuid(),
+  agentId: z.string(),
+  agentName: z.string(),
+  /** Wall-clock minutes since the last event for this agent. */
+  stuckMinutes: z.number().int().nonnegative(),
+  lastEventType: z.string().nullable(),
+  lastEventAt: z.iso.datetime().nullable(),
+  runningToolCalls: z.number().int().nonnegative(),
+  at: z.iso.datetime(),
+});
+
+export const AgentStuckIntervention = z.object({
+  type: z.literal('agent.stuck.intervention'),
+  sessionId: z.uuid(),
+  agentId: z.string(),
+  agentName: z.string(),
+  stuckMinutes: z.number().int().nonnegative(),
+  lastEventType: z.string().nullable(),
+  lastEventAt: z.iso.datetime().nullable(),
+  runningToolCalls: z.number().int().nonnegative(),
+  /** What the watchdog did. See agent_incidents.action_taken. */
+  actionTaken: z.string(),
+  /** UUID of the stored incident row + path of the auto-published doc. */
+  incidentId: z.uuid(),
+  incidentDocPath: z.string().nullable(),
+  at: z.iso.datetime(),
+});
+
+// FB-10 self-bug-tracker is intentionally NOT a session-scoped event:
+// findings can occur outside any session (boot exceptions, watchdog ticks,
+// MCP startup races) so they don't fit the discriminated union, which
+// requires sessionId. Findings live in their own `internal_findings` table
+// and are surfaced via the dedicated admin page `/internal/findings` —
+// not in the per-session ActivityFeed.
+
 export const AgentDeckEvent = z.discriminatedUnion('type', [
   SessionStarted,
   SessionEnded,
@@ -276,5 +318,7 @@ export const AgentDeckEvent = z.discriminatedUnion('type', [
   AgentTaskStarted,
   AgentTaskProgressed,
   AgentTaskCompleted,
+  AgentStuckWarning,
+  AgentStuckIntervention,
 ]);
 export type AgentDeckEvent = z.infer<typeof AgentDeckEvent>;

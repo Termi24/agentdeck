@@ -15,7 +15,6 @@ import {
   ActivityFeedVirtualized,
   VIRTUALIZE_THRESHOLD,
 } from '@/components/session/activity-feed-virtualized';
-import { RunningTools } from '@/components/session/running-tools';
 import { SessionTabs } from '@/components/session/session-tabs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -94,6 +93,30 @@ function SessionDashboard({ sessionId }: { sessionId: string }) {
     return b;
   }, [events]);
 
+  // Planning breakdown — same fold pattern. Surfaces task progression at the
+  // top of the dashboard so users notice the Planning surface even before
+  // drilling into the bottom tabs (FB-02).
+  const planningBreakdown = useMemo(() => {
+    const status = new Map<string, 'planned' | 'in_progress' | 'completed' | 'blocked' | 'cancelled'>();
+    for (const e of events as ReadonlyArray<AgentDeckEvent>) {
+      if (e.type === 'agent.task.planned') status.set(e.taskId, 'planned');
+      else if (e.type === 'agent.task.started') status.set(e.taskId, 'in_progress');
+      else if (e.type === 'agent.task.progressed') {
+        if (e.status) status.set(e.taskId, e.status);
+      } else if (e.type === 'agent.task.completed') {
+        status.set(e.taskId, e.status ?? 'completed');
+      }
+    }
+    const b = { planned: 0, inProgress: 0, completed: 0, blocked: 0 };
+    for (const s of status.values()) {
+      if (s === 'planned') b.planned++;
+      else if (s === 'in_progress') b.inProgress++;
+      else if (s === 'completed') b.completed++;
+      else if (s === 'blocked') b.blocked++;
+    }
+    return b;
+  }, [events]);
+
   const sessionEnded = session?.status === 'completed' || session?.status === 'failed' || session?.status === 'cancelled';
   const selectedAgentName = useMemo(() => {
     if (!selectedAgentId) return null;
@@ -135,9 +158,16 @@ function SessionDashboard({ sessionId }: { sessionId: string }) {
 
       <ReplayScrubber />
 
-      <KpiStrip session={session} testBreakdown={testBreakdown} />
+      <KpiStrip
+        session={session}
+        testBreakdown={testBreakdown}
+        planningBreakdown={planningBreakdown}
+      />
 
-      {/* Main triptych — agents tree | activity feed | running tools */}
+      {/* Main pair — agents tree | activity feed.
+          The legacy "Running tools" side panel was removed (FB-04): the same
+          info is already surfaced as runningToolCallCount in the KPI strip
+          and as live tool_call events in the activity feed itself. */}
       <section className="grid grid-cols-12 gap-4 px-6 pt-4" style={{ minHeight: '520px' }}>
         <div className="col-span-12 md:col-span-3 md:h-[520px]">
           <AgentTree
@@ -146,7 +176,7 @@ function SessionDashboard({ sessionId }: { sessionId: string }) {
             onSelect={setSelectedAgentId}
           />
         </div>
-        <div className="col-span-12 md:col-span-6 md:h-[520px]">
+        <div className="col-span-12 md:col-span-9 md:h-[520px]">
           {useVirtualizedFeed ? (
             <ActivityFeedVirtualized
               agentFilterId={selectedAgentId}
@@ -160,9 +190,6 @@ function SessionDashboard({ sessionId }: { sessionId: string }) {
               onClearAgentFilter={clearFilter}
             />
           )}
-        </div>
-        <div className="col-span-12 md:col-span-3 md:h-[520px]">
-          <RunningTools sessionId={sessionId} />
         </div>
       </section>
 

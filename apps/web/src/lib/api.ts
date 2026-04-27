@@ -193,6 +193,79 @@ export async function listProjectSessions(projectId: string): Promise<SessionLis
   return body.sessions;
 }
 
+/* ──────────────── Internal bug tracker (FB-10) ──────────────── */
+
+export type FindingSeverity = 'info' | 'warn' | 'error' | 'critical';
+export type FindingStatus = 'open' | 'triaged' | 'fixed' | 'wontfix';
+export type FindingSource = 'proxy' | 'mcp' | 'browser' | 'watchdog' | 'ui' | 'other';
+
+export interface InternalFinding {
+  id: string;
+  fingerprint: string;
+  severity: FindingSeverity;
+  source: FindingSource;
+  category: string;
+  message: string;
+  stack: string | null;
+  context: Record<string, unknown> | null;
+  occurrences: number;
+  status: FindingStatus;
+  fixedInVersion: string | null;
+  firstSeenAt: string;
+  lastSeenAt: string;
+}
+
+export interface FindingsSummary {
+  total: number;
+  open: number;
+  triaged: number;
+  fixed: number;
+  wontfix: number;
+  bySeverity: Record<FindingSeverity, number>;
+  openHighSeverity: number;
+}
+
+export async function listInternalFindings(opts: {
+  status?: FindingStatus | 'all';
+  severity?: FindingSeverity | 'all';
+  source?: FindingSource | 'all';
+  limit?: number;
+} = {}): Promise<InternalFinding[]> {
+  const qs = new URLSearchParams();
+  if (opts.status) qs.set('status', opts.status);
+  if (opts.severity) qs.set('severity', opts.severity);
+  if (opts.source) qs.set('source', opts.source);
+  if (opts.limit) qs.set('limit', String(opts.limit));
+  const url = `${PROXY_URL}/internal/findings${qs.toString() ? `?${qs}` : ''}`;
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`listInternalFindings failed: ${res.status}`);
+  const body = (await res.json()) as { findings: InternalFinding[] };
+  return body.findings;
+}
+
+export async function getFindingsSummary(): Promise<FindingsSummary> {
+  const res = await fetch(`${PROXY_URL}/internal/findings/summary`, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`getFindingsSummary failed: ${res.status}`);
+  return (await res.json()) as FindingsSummary;
+}
+
+export async function patchInternalFinding(
+  id: string,
+  patch: { status?: FindingStatus; fixedInVersion?: string | null },
+): Promise<void> {
+  const res = await fetch(`${PROXY_URL}/internal/findings/${id}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw new Error(`patchInternalFinding failed: ${res.status}`);
+}
+
+export async function deleteInternalFinding(id: string): Promise<void> {
+  const res = await fetch(`${PROXY_URL}/internal/findings/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`deleteInternalFinding failed: ${res.status}`);
+}
+
 export async function listSessions(limit = 200): Promise<SessionListItem[]> {
   const res = await fetch(`${PROXY_URL}/sessions?limit=${limit}`, {
     method: 'GET',

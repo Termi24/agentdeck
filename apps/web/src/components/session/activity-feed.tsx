@@ -330,6 +330,34 @@ export function foldEvents(events: ReadonlyArray<AgentDeckEvent>, filterAgentId:
           body: e.content,
         });
         break;
+      case 'agent.stuck.warning':
+        if (filterAgentId && e.agentId !== filterAgentId) break;
+        items.push({
+          key: `stuck-warn:${e.agentId}:${e.at}`,
+          at: e.at,
+          category: 'agents',
+          icon: CircleDashed,
+          tone: 'amber',
+          fromAgentName: 'watchdog',
+          title: `${e.agentName} silent ${e.stuckMinutes} min`,
+          body: e.lastEventType ? `last activity: ${e.lastEventType}` : 'no prior activity',
+          rightBadge: 'warning',
+        });
+        break;
+      case 'agent.stuck.intervention':
+        if (filterAgentId && e.agentId !== filterAgentId) break;
+        items.push({
+          key: `stuck-act:${e.agentId}:${e.at}`,
+          at: e.at,
+          category: 'agents',
+          icon: XCircle,
+          tone: 'red',
+          fromAgentName: 'watchdog',
+          title: `${e.agentName} stuck ${e.stuckMinutes} min — auto-cancel`,
+          body: e.incidentDocPath ? `incident doc: ${e.incidentDocPath}` : null,
+          rightBadge: 'intervention',
+        });
+        break;
       default:
         // skip noisy deltas, sandbox changes, screenshots, memory updates
         break;
