@@ -6,14 +6,12 @@ const nextConfig: NextConfig = {
   typedRoutes: true,
   async redirects() {
     return [
-      // `default` is the implicit catch-all bucket for CLI bridges that don't
-      // set AGENTDECK_PROJECT_ID — it has no semantic value of its own. Its
-      // sessions are visible on the hub via the inline Teams expander, so the
-      // dedicated /projects/default page is permanently redundant. 308 = the
-      // request method is preserved (we never POST to /projects, but if a
-      // bookmark sends a HEAD it stays a HEAD).
+      // The /projects/[id] deep-view route was killed in favour of a flatter
+      // 2-page model: hub at / lists every project (= every connected CLI),
+      // sessions live at /sessions/[id]. Any /projects/... bookmark from a
+      // pre-flat era resolves to the hub. Permanent (308) keeps method.
       {
-        source: '/projects/default',
+        source: '/projects/:path*',
         destination: '/',
         permanent: true,
       },

@@ -1,16 +1,15 @@
 'use client';
 /**
- * Teams view for the project page (FB-03). The product decision is "1 session
- * = 1 team", read-only. The card lists every session of the project; click
- * opens a side-sheet enumerating the agents (orchestrator + sub-agents) with
- * their full skill / prompt — same `AgentDetailSheet` pattern as the session
- * dashboard's row 3 "Agents & context" tab, just rooted on the project page.
+ * Teams list — embedded inside the hub's ProjectCard as the inline
+ * "Show N teams" expander. The product decision is "1 session = 1 team",
+ * read-only: the list shows every session of the project; click a row opens
+ * a side-sheet with the agents (orchestrator + sub-agents) and their full
+ * skill / prompt.
  */
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Crown, Users } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import {
@@ -21,19 +20,10 @@ import {
 import { ACTIVE_STATUSES, LiveDot, relativeTime, statusClasses } from '@/components/session/shared';
 
 interface Props {
-  projectId: string;
   sessions: SessionListItem[];
-  /**
-   * `card` (default) — wrap the list in the standard glass Card with a
-   *   "Teams in <projectId>" header. Used as a section on /projects/[id].
-   * `inline` — render only the row list + the side-sheet, no Card wrap and
-   *   no header. Used when embedded inside another card (the hub's
-   *   ProjectCard expand).
-   */
-  variant?: 'card' | 'inline';
 }
 
-export function TeamList({ projectId, sessions, variant = 'card' }: Props) {
+export function TeamList({ sessions }: Props) {
   const [openTeamId, setOpenTeamId] = useState<string | null>(null);
 
   const ordered = useMemo(
@@ -100,39 +90,15 @@ export function TeamList({ projectId, sessions, variant = 'card' }: Props) {
     </ul>
   );
 
-  const sheet = (
-    <TeamSheet
-      sessionId={openTeamId}
-      sessionTitle={ordered.find((s) => s.id === openTeamId)?.title ?? null}
-      onOpenChange={(o) => !o && setOpenTeamId(null)}
-    />
-  );
-
-  if (variant === 'inline') {
-    return (
-      <>
-        {rows}
-        {sheet}
-      </>
-    );
-  }
-
   return (
-    <section className="pb-6">
-      <Card className="glass ring-soft rounded-2xl border-white/10 bg-transparent">
-        <CardHeader className="border-b border-white/10 px-4 py-3">
-          <CardTitle className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-white/55">
-            <Users className="h-3.5 w-3.5" />
-            Teams in {projectId}
-            <span className="font-mono tabular ml-1 rounded-full border border-white/15 bg-white/5 px-1.5 py-0 text-[10px] text-white/65">
-              {sessions.length}
-            </span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">{rows}</CardContent>
-      </Card>
-      {sheet}
-    </section>
+    <>
+      {rows}
+      <TeamSheet
+        sessionId={openTeamId}
+        sessionTitle={ordered.find((s) => s.id === openTeamId)?.title ?? null}
+        onOpenChange={(o) => !o && setOpenTeamId(null)}
+      />
+    </>
   );
 }
 

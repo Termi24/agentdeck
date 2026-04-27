@@ -441,19 +441,17 @@ function ProjectCard({ p, autoExpandTeams }: { p: ProjectListItem; autoExpandTea
   const status = p.latestStatus;
   const isStatusActive = status ? ACTIVE_STATUSES.includes(status) : false;
 
-  // Single-session projects: clicking the card jumps straight to the session
-  // dashboard. Multi-session: jumps to /projects/[id] which lists them.
-  const primaryHref = (
-    p.sessionCount === 1 && p.latestSessionId
-      ? `/sessions/${p.latestSessionId}`
-      : `/projects/${encodeURIComponent(p.projectId)}`
-  ) as never;
+  // Two-page model: hub + session. Clicking a project card always jumps to
+  // its latest session dashboard. Earlier sessions of the same project remain
+  // reachable via the inline Teams expander below.
+  const primaryHref = (p.latestSessionId ? `/sessions/${p.latestSessionId}` : '/') as never;
 
   const totalTokens = p.totalTokensIn + p.totalTokensOut;
   const showTeamsToggle = p.sessionCount > 0;
 
-  // Expand state — auto-expand when this is the only project (the value /projects/default
-  // used to provide before the FB-09 redirect). Multi-project mode defaults to collapsed.
+  // Expand state — auto-expand when this is the only project (so single-CLI
+  // users see the team rows immediately). Multi-project mode defaults to
+  // collapsed for hub density.
   const [expanded, setExpanded] = useState(autoExpandTeams);
   const [sessions, setSessions] = useState<SessionListItem[] | null>(null);
   const [sessionsLoading, setSessionsLoading] = useState(false);
@@ -582,7 +580,7 @@ function ProjectCard({ p, autoExpandTeams }: { p: ProjectListItem; autoExpandTea
                 {sessionsLoading && sessions === null ? (
                   <p className="px-5 py-3 text-[11.5px] text-white/45">loading teams…</p>
                 ) : sessions && sessions.length > 0 ? (
-                  <TeamList projectId={p.projectId} sessions={sessions} variant="inline" />
+                  <TeamList sessions={sessions} />
                 ) : (
                   <p className="px-5 py-3 text-[11.5px] text-white/45">no teams yet</p>
                 )}
@@ -591,23 +589,14 @@ function ProjectCard({ p, autoExpandTeams }: { p: ProjectListItem; autoExpandTea
           </div>
         )}
 
-        {/* Footer — totalTokens + open hint. Sits inside the article but
-            outside the Link, so the hover state matches the whole article. */}
+        {/* Footer — totalTokens + first-seen meta. */}
         <div className="flex items-center justify-between border-t border-white/10 px-5 py-3 text-[11px] text-white/45">
-          <div className="flex items-center gap-3">
-            <span className="font-mono tabular">{totalTokens.toLocaleString()} tok</span>
-            {p.startedAt && (
-              <span>
-                first <span className="font-mono">{relativeTime(p.startedAt)}</span>
-              </span>
-            )}
-          </div>
-          <Link
-            href={`/projects/${encodeURIComponent(p.projectId)}` as never}
-            className="text-white/55 hover:text-white"
-          >
-            open project →
-          </Link>
+          <span className="font-mono tabular">{totalTokens.toLocaleString()} tok</span>
+          {p.startedAt && (
+            <span>
+              first <span className="font-mono">{relativeTime(p.startedAt)}</span>
+            </span>
+          )}
         </div>
       </article>
     </li>
