@@ -5,6 +5,129 @@ and to the user vault under `01-Projects/agentdeck/03-Sprints/Recent-Releases.md
 where applicable. Version line items aligned across the 4 workspaces (root,
 proxy, mcp, shared, web) — single bump per release.
 
+## [0.0.9] — 2026-04-28
+
+> Style B web redesign + 2-page model + agentdeck-run skill + bridge tooling.
+> A multi-day batch starting from a fresh clone, going through three iterations
+> on /projects routes (deep-view → unconditional redirect → server-level kill),
+> finishing with a real `claude -p` headless smoke test that catches its own
+> bugs. Typecheck + tool-count invariant green; no schema migration needed.
+
+### Added — Style B "expressif" web redesign
+
+- **`apps/web/src/app/globals.css`** — multi-radial ambient body background
+  (violet/pink/cyan on `#07060c`), new design tokens in `@layer components`:
+  `.glass` (180° linear-gradient + backdrop-blur 14px), `.ring-soft` (inset
+  white/6 + outer black/40), `.grad-accent` (violet→pink 135°), `.grad-text`
+  (3-stop violet→fuchsia→rose), `.glow-{cyan,amber,emerald,rose}` (1px ring
+  + 30px coloured drop), `.pulse-dot` (1.6s ease-in-out keyframes in
+  `@layer utilities`).
+- **`apps/web/tailwind.config.ts`** — extends `fontFamily.sans` and `.mono`
+  from `next/font/google` Inter Variable + JetBrains Mono. Adds
+  `boxShadow.soft-pop` (violet drop) and `animation.pulse-dot`.
+- **`apps/web/src/app/layout.tsx`** — Inter Variable + JetBrains Mono via
+  `next/font/google` (variables `--font-sans` + `--font-mono`).
+- **Refondue page-by-page** to glass + rounded-2xl + pill toolbars + KPI orbs
+  + status glow on live cards: `/` (hub), `/sessions/[id]` and its components
+  (SessionHeader, KpiStrip, AgentTree, ActivityFeed + virtualized,
+  SessionTabs incl. AgentTile/Tests table/DM/Channel, ReplayScrubber,
+  UserInputBar, AwaitingInputBanner, AgentDetailSheet, PlanningView via
+  Tailwind class sweep), `/internal/findings`, hub/SessionViews. The legacy
+  `border-border/60 bg-card/40` pattern was systematically replaced with
+  `glass ring-soft border-white/10 bg-transparent rounded-2xl`.
+
+### Added — 2-page model (deletion of `/projects/[id]`)
+
+- **`apps/web/next.config.ts`** — permanent (HTTP 308) redirect from
+  `/projects/:path*` → `/`. Resolves before any client code runs; bookmarks
+  to /projects/default, /projects/foo/bar, etc. all land on the hub
+  cleanly.
+- **`apps/web/src/app/projects/[projectId]/page.tsx`** — **deleted.** The
+  whole `app/projects/` directory is gone.
+- **`apps/web/src/app/page.tsx` `ProjectCard`** refactor — split the single
+  Link wrapper into three zones: top (header + stats + last channel) →
+  navigates directly to `/sessions/<latestSessionId>` (was `/projects/[id]`
+  for multi-session projects); middle Teams expander → action-local, hors
+  Link; footer → tokens + first-seen meta only ("open project →" link
+  removed). Auto-expanded when there's only one project so single-CLI
+  users see the team rows immediately.
+- **`apps/web/src/components/projects/team-list.tsx`** — `variant: 'card'
+  | 'inline'` prop removed, the inline rendering (just rows + side-sheet)
+  is the only mode now. The `card` wrap only existed for `/projects/[id]`.
+
+### Added — agentdeck-run skill + /agentdeck-self-test slash command
+
+- **`process/skills/agentdeck-run/SKILL.md`** — auto-triggerable Claude Code
+  skill with frontmatter `name`+`description`. Documents and enforces the
+  protocol that populates every dashboard surface from a CLI bridge:
+  `set_agent_identity` first, `task_plan` upfront, `spawn_agent` per
+  persona (with **full skill text as `prompt`**, not a 5-word summary),
+  `post_to_channel` + `send_direct` at every meaningful step,
+  `report_test_result` per assertion, `publish_doc` per artefact,
+  `task_update_progress` + `task_complete` as work proceeds, `stop_agent`
+  for every sub then root.
+- **`process/commands/agentdeck-self-test.md`** — slash command
+  `/agentdeck-self-test` that exercises the 13 key tools as a synthetic
+  smoke test of the bridge plumbing. Frontmatter `allowed-tools` lists
+  the explicit `mcp__agentdeck__*` whitelist required by `claude -p`.
+- **`scripts/install-skills.mjs`** — copies `process/skills/*` →
+  `~/.claude/skills/*` and `process/commands/*` → `~/.claude/commands/*`.
+  Idempotent. The repo is the source of truth, the user copy is generated.
+- **`process/agentdeck-skill-template.md`** — long-form documentation of
+  the same protocol, ready to paste into any skill that needs to enforce
+  full-fidelity observability.
+
+### Added — bridge end-to-end testing
+
+- **`scripts/test-cli-bridge.mjs`** — runs `claude -p "/agentdeck-self-test"`
+  with `--permission-mode bypassPermissions --allowed-tools "mcp__agentdeck__*"`
+  (both required: in `-p` mode the model only calls explicitly allowed
+  tools even with bypass mode). On Windows the prompt is piped via stdin
+  (multiline argv mangles through cmd.exe). After the run, fetches the new
+  bridge session via REST and asserts: root identity != `claude-cli`, root
+  prompt non-empty, ≥ 1 sub-agent, ≥ 3 channel messages, ≥ 1 DM, ≥ 2 tasks
+  (≥ 1 completed), ≥ 1 test result, ≥ 1 doc published. **9/9 green = the
+  skill template is full-fidelity.** Run after every modification of
+  `agentdeck-run/SKILL.md` to catch regressions.
+- **`scripts/seed-demo.mjs`** — POSTs 5 realistic demo sessions
+  (indusforge / eyeot-erp / agentdeck-self-audit / ecom-bench / client-acme)
+  with channel, DMs, docs, planning tasks (Gantt material) and test results
+  so the redesigned UI has rich content to render. `--keep-alive` flag
+  enters an infinite heartbeat loop for the freshly-created bridge sessions
+  so they stay `running` (the bridge-watchdog otherwise finalizes them
+  after 90 s of silence). Wipe + reseed: `rm data/agentdeck.db
+  data/agentdeck.db-* && pnpm db:migrate && node scripts/seed-demo.mjs
+  --keep-alive`.
+
+### Fixed
+
+- **`packages/mcp/src/index.ts` `stop_agent` shim** — the shim was reading
+  `r.agentId` on the proxy response, but the proxy returns 204 No Content
+  (body null) → `Cannot read properties of undefined (reading 'agentId')`.
+  Compose the confirmation string from the input arguments instead.
+  Discovered organically by Claude during the first real
+  `test-cli-bridge.mjs` run — the system caught its own bug, confirming
+  the FB-10 self-bug-tracker pattern works end-to-end.
+
+### Removed
+
+- **`apps/web/src/app/projects/[projectId]/page.tsx`** and the entire
+  `apps/web/src/app/projects/` directory — the deep-view route is gone.
+- **`TeamList.variant: 'card'`** — only `inline` remains.
+- **"open project →"** footer link in `ProjectCard` — no project page to
+  link to.
+
+### Verification
+
+- `pnpm typecheck` clean across all 4 workspaces.
+- `pnpm check:tool-count` clean (47/47 aligned).
+- `node scripts/test-cli-bridge.mjs` returns 9/9 green:
+  `Self-test complete: 13 tool calls executed, smoke-worker stopped.`
+- `curl -I /projects/default` → `HTTP 308 → /`.
+- `curl -I /projects/anything-else/with/path` → `HTTP 308 → /`.
+
+---
+
 ## [Unreleased] — work landed 2026-04-27 on `main`
 
 > Amine UX/process batch — 10 items collected during a live session, all

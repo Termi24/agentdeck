@@ -21,7 +21,10 @@ Start a session from the browser, and agentdeck:
   - coordination: `send_direct`, `read_direct`, `await_user_input`, `request_agent_cancel`, `check_cancellation`
   - identity + sub-agent registration: `set_agent_identity`, `spawn_agent`, `stop_agent`
   - task planning: `task_plan`, `task_update_progress`, `task_complete`,
-- renders everything in a tiling workspace (`dockview-react`): agent tree + per-agent tabs + 9 fixed tabs (Channel, Docs, Sandbox, Procedures, Results, Browser, Memory, Secrets, plus per-subagent DM).
+- renders everything in a **two-page web UI** (v0.0.9+):
+  - `/` (hub) — one card per connected CLI / project, with KPIs, last-channel preview, status badge and an inline `Show N teams ▾` expander to browse historical sessions per project. Style B chrome (Raycast/Arc-like): glass surfaces, violet→pink gradient accent, status glows.
+  - `/sessions/[id]` — single-session dashboard (KPI strip + AgentTree + ActivityFeed + tabs Planning / Tests / DMs / Docs / Channel + sticky UserInputBar).
+  - The classic `dockview-react` tiling workspace is still available at `/sessions/[id]/dockview` for power users.
 
 ## Quick start (Windows)
 
@@ -112,4 +115,4 @@ The SDK reads `~/.claude/` credentials; no `ANTHROPIC_API_KEY` needed. The secre
 
 ## Releases
 
-Versioned in `CHANGELOG.md`. Latest: **v0.0.8** — sub-agent attribution forward-compat, virtualized activity feed, husky/CI invariant lock-in, audit/ artefacts committed. **Unreleased on `main`**: stuck-agent watchdog (3 min warning / 5 min auto-cancel + incident doc), self-bug-tracker (`/internal/findings`), Teams view per project, Planning KPI in the session strip, headless prompt for UI campaigns.
+Versioned in `CHANGELOG.md`. Latest: **v0.0.9** — Style B "expressif" web redesign (glassmorphism + violet→pink accent), 2-page model (`/` + `/sessions/[id]`, `/projects/*` killed at the Next.js config level with a permanent 308 redirect), inline `Show N teams ▾` expander on every project card replacing the old `/projects/[id]` deep-view, agentdeck-run skill + `/agentdeck-self-test` slash command + `scripts/test-cli-bridge.mjs` end-to-end runner that asserts 9 surface checks on every CLI bridge run, `scripts/seed-demo.mjs` (5 realistic demo sessions, `--keep-alive` mode), `stop_agent` MCP shim 204-body bug fix. Previous v0.0.8: sub-agent attribution forward-compat, virtualized activity feed, husky/CI invariant lock-in, audit/ artefacts committed.
