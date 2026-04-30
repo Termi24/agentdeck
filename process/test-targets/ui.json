@@ -1,0 +1,53 @@
+{
+  "target": "ui",
+  "description": "Frontend / UI personas — multi-persona browser audit with isolated BrowserContext per persona (zero cross-persona contamination), a11y pass, every reported bug re-validated. Phase 4 personas drive via browser_* only (Principe 10).",
+  "phaseMatrix": {
+    "phase-0": "full",
+    "phase-1": "full",
+    "phase-2": "full",
+    "phase-3": "full",
+    "phase-4": "full",
+    "phase-5": "full",
+    "phase-6": "full",
+    "phase-7": "full",
+    "phase-9": "full"
+  },
+  "specialists": ["ui-playwright-auditor"],
+  "runbooks": ["isolated-ui-smoke.md", "claim-validator.md"],
+  "gates": [
+    {
+      "name": "ui.coverageRatio",
+      "description": "Methodology Principe 10 — Phase-4 personas drive the target via browser_* only. Hard fail at <50%, warning <70%. Per-persona waiver via UI-EXEMPT: <persona>: <reason> in retrospective.toolingFeedback.",
+      "blocking": true,
+      "source": "ui-coverage-principe-10",
+      "hardFloor": 0.5,
+      "warnFloor": 0.7
+    },
+    {
+      "name": "a11y.criticalViolations",
+      "description": "Zero axe-core 'critical' or 'serious' violations on the personas' visited pages. Record under metric `a11y.criticalViolations` (cumulative count across all personas).",
+      "blocking": true,
+      "source": "metric-max",
+      "metric": "a11y.criticalViolations",
+      "maximum": 0
+    },
+    {
+      "name": "personas.contextIsolation",
+      "description": "Every Phase-4 persona must call browser_new_context at start of run. Record under metric `personas.uncontaminated` (count of personas that called browser_new_context) and `personas.declared` (total persona count).",
+      "blocking": true,
+      "source": "metric-ratio-min",
+      "numeratorMetric": "personas.uncontaminated",
+      "denominatorMetric": "personas.declared",
+      "minimum": 1.0
+    },
+    {
+      "name": "claims.validatedRatio",
+      "description": "Every reported bug must have been re-validated by claim-validator before clôture. claims.validated / claims.reported = 1.0.",
+      "blocking": true,
+      "source": "metric-ratio-min",
+      "numeratorMetric": "claims.validated",
+      "denominatorMetric": "claims.reported",
+      "minimum": 1.0
+    }
+  ]
+}

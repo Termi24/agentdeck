@@ -3,32 +3,42 @@ import { resolve } from 'node:path';
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { config } from '../config.js';
+import { getTemplate, listTemplateNames } from '../services/test-targets-loader.js';
+import { synthesizeTargetSection, targetFromSectionName } from '../services/target-section-synth.js';
+
+const STATIC_SECTIONS = [
+  'overview',
+  'principles',
+  'tooling',
+  'communication',
+  'pre-start',
+  'personas',
+  'phase-0',
+  'phase-1',
+  'phase-2',
+  'phase-3',
+  'phase-4',
+  'phase-5',
+  'phase-6',
+  'phase-7',
+  'phase-9',
+  'conventions',
+  'templates',
+  'troubleshooting',
+  'metrics',
+  'full',
+] as const;
+
+const STATIC_SECTION_SET = new Set<string>(STATIC_SECTIONS);
 
 const Query = z.object({
   section: z
-    .enum([
-      'overview',
-      'principles',
-      'tooling',
-      'communication',
-      'pre-start',
-      'personas',
-      'phase-0',
-      'phase-1',
-      'phase-2',
-      'phase-3',
-      'phase-4',
-      'phase-5',
-      'phase-6',
-      'phase-7',
-      'phase-9',
-      'conventions',
-      'templates',
-      'troubleshooting',
-      'metrics',
-      'full',
-    ])
-    .default('overview'),
+    .string()
+    .min(1)
+    .default('overview')
+    .describe(
+      'Either a known section (overview, principles, phase-0..9, …) or `target-<name>` to fetch a synthesized brief for a test-target template (api, ui, regression, …).',
+    ),
 });
 
 // Maps a section enum to a regex matching the corresponding heading in the
@@ -112,21 +122,54 @@ export const registerMethodologyRoutes: FastifyPluginAsync = async (app) => {
   app.get('/methodology', async (request, reply) => {
     const parsed = Query.safeParse(request.query);
     if (!parsed.success) return reply.badRequest(parsed.error.message);
+    const section = parsed.data.section;
+
+    // 1. Synthetic target-* section: generate from JSON template (no markdown read).
+    const targetName = targetFromSectionName(section);
+    if (targetName) {
+      const tpl = getTemplate(targetName);
+      if (!tpl) {
+        return reply.code(404).send({
+          error: 'unknown_target',
+          message: `No template for target "${targetName}". Available: ${listTemplateNames().join(', ') || '(none)'}`,
+          section,
+          availableTargets: listTemplateNames(),
+        });
+      }
+      const content = await synthesizeTargetSection(tpl, config.REPO_ROOT);
+      return {
+        section,
+        path: `process/test-targets/${targetName}.json`,
+        lineCount: content.split('\n').length,
+        content,
+      };
+    }
+
+    // 2. Static section: only enumerated names allowed (rejects typos).
+    if (!STATIC_SECTION_SET.has(section)) {
+      return reply.code(404).send({
+        error: 'unknown_section',
+        message:
+          `Unknown section "${section}". Use one of: ${STATIC_SECTIONS.join(', ')}, ` +
+          `or "target-<name>" with name in: ${listTemplateNames().join(', ') || '(no targets)'}.`,
+        section,
+        availableStaticSections: [...STATIC_SECTIONS],
+        availableTargets: listTemplateNames(),
+      });
+    }
     let full: string;
     try {
       full = await readFile(path, 'utf8');
     } catch (err) {
-      return reply
-        .code(404)
-        .send({ error: 'methodology file not found', path, detail: String(err) });
+      return reply.code(404).send({ error: 'methodology file not found', path, detail: String(err) });
     }
-    let content = sliceSection(full, parsed.data.section);
-    if (parsed.data.section === 'phase-4' || parsed.data.section === 'principles') {
+    let content = sliceSection(full, section);
+    if (section === 'phase-4' || section === 'principles') {
       const runbook = await readUiDefaultProcedure(config.REPO_ROOT);
       content = attachUiProcedure(content, runbook);
     }
     return {
-      section: parsed.data.section,
+      section,
       path,
       lineCount: content.split('\n').length,
       content,

@@ -1,0 +1,54 @@
+{
+  "target": "api",
+  "description": "Backend / REST coverage — exhaustive route × failure-class matrix, RBAC if applicable, every claimed bug independently re-validated, regression suite green. Use for pure-backend audits where there is no UI to drive (no Phase-4 personas in browser; UI gate is intentionally absent).",
+  "phaseMatrix": {
+    "phase-0": "full",
+    "phase-1": "full",
+    "phase-2": "full",
+    "phase-3": "full",
+    "phase-4": "full",
+    "phase-5": "full",
+    "phase-6": "full",
+    "phase-7": "full",
+    "phase-9": "full"
+  },
+  "specialists": ["rest-auditor"],
+  "runbooks": ["exhaustive-crud-test.md", "claim-validator.md", "rbac-probe.md"],
+  "gates": [
+    {
+      "name": "api.routes.coverage",
+      "description": "Every declared route must be probed at least once with a happy-path test. Numerator: api.routes.tested ; denominator: api.routes.declared. Missing either metric counts as failure.",
+      "blocking": true,
+      "source": "metric-ratio-min",
+      "numeratorMetric": "api.routes.tested",
+      "denominatorMetric": "api.routes.declared",
+      "minimum": 0.95
+    },
+    {
+      "name": "api.failureClasses.coverage",
+      "description": "Each route × failure-class pair must be probed (4xx auth, 4xx not-found, 4xx invalid-input, 5xx). Numerator: api.failureClasses.covered ; denominator: api.failureClasses.declared.",
+      "blocking": true,
+      "source": "metric-ratio-min",
+      "numeratorMetric": "api.failureClasses.covered",
+      "denominatorMetric": "api.failureClasses.declared",
+      "minimum": 0.85
+    },
+    {
+      "name": "claims.validatedRatio",
+      "description": "Every reported bug must have been re-validated by claim-validator before clôture. claims.validated / claims.reported = 1.0.",
+      "blocking": true,
+      "source": "metric-ratio-min",
+      "numeratorMetric": "claims.validated",
+      "denominatorMetric": "claims.reported",
+      "minimum": 1.0
+    },
+    {
+      "name": "regression.failed",
+      "description": "Zero regression-suite failures.",
+      "blocking": true,
+      "source": "metric-max",
+      "metric": "regression.failed",
+      "maximum": 0
+    }
+  ]
+}

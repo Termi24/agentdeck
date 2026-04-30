@@ -1,0 +1,43 @@
+{
+  "target": "regression",
+  "description": "Regression-only run — replays _qa/regression-suite.jsonl and confirms zero failures. Cheap (~2 min wall-clock), suitable for per-commit / pre-merge gates. No exploratory testing, no specialists fan-out — single regression-tester agent.",
+  "phaseMatrix": {
+    "phase-0": "light",
+    "phase-1": "skip",
+    "phase-2": "skip",
+    "phase-3": "light",
+    "phase-4": "full",
+    "phase-5": "skip",
+    "phase-6": "skip",
+    "phase-7": "skip",
+    "phase-9": "light"
+  },
+  "specialists": ["regression-tester"],
+  "runbooks": [],
+  "gates": [
+    {
+      "name": "regression.failed",
+      "description": "Zero regression-suite failures.",
+      "blocking": true,
+      "source": "metric-max",
+      "metric": "regression.failed",
+      "maximum": 0
+    },
+    {
+      "name": "regression.skipped",
+      "description": "Zero skipped regression entries — the whole suite must run unless explicitly waived (REGRESSION-SKIPPED-EXEMPT: <reg-id>: <reason>).",
+      "blocking": true,
+      "source": "metric-max",
+      "metric": "regression.skipped",
+      "maximum": 0
+    },
+    {
+      "name": "regression.tested.minimum",
+      "description": "At least one regression entry must have been attempted — guards against silent empty-suite passes.",
+      "blocking": true,
+      "source": "metric-min",
+      "metric": "regression.tested",
+      "minimum": 1
+    }
+  ]
+}
