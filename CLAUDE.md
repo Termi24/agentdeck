@@ -134,6 +134,94 @@ Backend-only audits (rest-auditor, schema-auditor, perf-auditor on
 agentdeck itself) ship with a blanket waiver in their orchestrator
 templates so the gate doesn't false-positive.
 
+## Test-target dispatcher (v0.0.10+)
+
+agentdeck shipped as a generic QA tool with a typed CLI dispatcher : choose
+the **cible** (front, back, ui, …) and the dispatcher loads the right
+spécialistes, runbooks, and BLOCKING gates for it. `end_campaign` refuses
+to close until every blocking gate is satisfied (or explicitly waived).
+
+```
+agentdeck-test <target> [project-path] [--json] [--fail-on=hard|warn|none]
+
+Targets: api | ui | schema | e2e | security | perf | integration | regression
+         | complete | full
+         (run `agentdeck-test --list-targets` for the live list + their gates)
+```
+
+- **`api`** — REST coverage (route × failure-class matrix) + claim validation + regression.
+- **`ui`** — Phase-4 personas with isolated BrowserContext + Principe-10 + a11y.
+- **`schema`** — event ↔ table parity, table reachability, migration round-trips.
+- **`e2e`** — declared user flows × api gates × ui gates.
+- **`security`** — RBAC matrix, secrets exposure, path-traversal, injection.
+- **`perf`** — p50/p95 latency, throughput, memory delta, error rate.
+- **`integration`** — event-sourcing invariants, replay determinism, attribution accuracy.
+- **`regression`** — replay `_qa/regression-suite.jsonl` only (~2 min).
+- **`complete`** — strict union of every above gate set (long; release-quality).
+- **`full`** — *legacy default*, lenient, ships only the historical Principe-10
+  gate. Picked by `start_qa_campaign` calls that don't pass `target`. Backward
+  compat for v0.0.9 and earlier callers.
+
+### Architecture
+
+- **Templates** (`process/test-targets/<target>.json`) — single source of truth
+  per cible. Declare `phaseMatrix` (full/light/skip per 9-phase step),
+  `specialists` (which `.claude/agents/*.md` to fan out to), `runbooks`
+  (procedures to attach), and `gates` (the BLOCKING constraints). Schema in
+  `packages/shared/src/test-targets/index.ts` (Zod).
+- **Loader** (`packages/proxy/src/services/test-targets-loader.ts`) — reads
+  every JSON at proxy boot, validates via Zod, exposes `getTemplate(target)`
+  and `listTemplateNames()`. Corrupt template logs warn + is skipped, never
+  crashes the proxy.
+- **Gate engine** (`packages/proxy/src/services/gate-engine.ts`) — 4 generic
+  gate kinds: `ui-coverage-principe-10`, `metric-min`, `metric-max`,
+  `metric-ratio-min`. Each gate reduces to a deterministic computation over
+  `campaigns` / `campaign_metrics` / `tool_calls` so historical replays
+  produce identical verdicts. `evaluateAll(campaignId)` runs every gate of
+  the campaign's template, persists outcomes to `campaign_gate_results`
+  (idempotent — re-runs OVERWRITE), returns `{passed, gates, blockers, warnings}`.
+- **Methodology synthesizer** (`packages/proxy/src/services/target-section-synth.ts`) —
+  `read_methodology({section:"target-<name>"})` synthesizes the brief on-the-fly
+  from the template (phase weights, specialists, gates table, how-to, runbooks
+  inlined). Single source of truth shared with the gate engine — drift impossible.
+- **Slash command** (`process/commands/agentdeck-test.md`) — human entry
+  point; protocol auto-installed by `scripts/install-skills.mjs`.
+- **Orchestrateur paramétré** (`.claude/agents/test-target-orchestrator.md`) —
+  same protocol, packaged as a `Task()`-spawnable sub-agent so SDK
+  orchestrators can delegate a typed campaign.
+- **CLI** (`scripts/agentdeck-test.mjs`, `bin: agentdeck-test`) — pre-creates
+  the campaign with the right target, spawns `claude -p "/agentdeck-test"`
+  with bypass perms + `mcp__agentdeck__*` allowlist, streams stdout, prints
+  a coloured gate verdict at exit. Exit codes follow `--fail-on`.
+
+### Gate metric naming convention
+
+The orchestrator (or its spécialistes) MUST `record_campaign_metric` for
+every metric name a gate references. Missing metric = gate failure (no
+silent pass). Conventional keys today:
+
+- `api.routes.tested`, `api.routes.declared`, `api.failureClasses.covered`, `api.failureClasses.declared`
+- `claims.reported`, `claims.validated`
+- `regression.tested`, `regression.failed`, `regression.skipped`
+- `schema.eventTypes`, `schema.eventTypesWithTableWrite`, `schema.tables`, `schema.tablesReached`, `schema.migrationRoundtripPassed`
+- `security.rbacDeclared`, `security.rbacProbed`, `security.secretsExposed`, `security.pathTraversalAttempted`, `security.pathTraversalBlocked`, `security.injectionAttempted`, `security.injectionBlocked`
+- `perf.p95LatencyMs`, `perf.throughputRps`, `perf.memoryLeakDeltaMb`, `perf.errorRate`
+- `integration.invariantsTested`, `integration.invariantsPassed`, `integration.replayProbes`, `integration.replayDeterministic`, `integration.attributionsProbed`, `integration.attributionsCorrect`
+- `e2e.flowsDeclared`, `e2e.flowsCovered`
+- `a11y.criticalViolations`, `personas.declared`, `personas.uncontaminated`
+
+Waivers go in `retrospective.toolingFeedback` as `<GATE-NAME>-EXEMPT: <subject>: <reason>`
+(legacy `UI-EXEMPT:` shape still accepted for the Principe-10 gate).
+
+### Acceptance + CI guarantees
+
+- **`scripts/acceptance-self-test.mjs`** — 30 proxy-layer checks (every
+  template loads, every target accepts a campaign, every `target-*` section
+  synthesizes, failure paths return crisp 4xx, legacy zero-target end-to-end
+  preserves the historical `uiCoverage` shape). Wall-clock ~30 s. No Claude
+  / API credentials required. Runs on push/PR via `.github/workflows/ci.yml`
+  and on pre-commit when the dispatcher surface changes.
+
 ## Claude CLI bridge
 
 `scripts/install-claude.mjs` (entrypoint: `install-claude.cmd`) writes `mcpServers.agentdeck` into `%USERPROFILE%\.claude\settings.json` and pre-approves the 47 `mcp__agentdeck__*` tools. Uninstall via `scripts/uninstall-claude.mjs`.

@@ -1,0 +1,54 @@
+{
+  "target": "schema",
+  "description": "Database schema integrity — every event type has a matching table write, every table is reachable from at least one event, all migrations apply + rollback cleanly. Use to gate schema changes before merge.",
+  "phaseMatrix": {
+    "phase-0": "full",
+    "phase-1": "full",
+    "phase-2": "full",
+    "phase-3": "light",
+    "phase-4": "full",
+    "phase-5": "light",
+    "phase-6": "full",
+    "phase-7": "full",
+    "phase-9": "full"
+  },
+  "specialists": ["schema-auditor"],
+  "runbooks": [],
+  "gates": [
+    {
+      "name": "schema.eventToTableParity",
+      "description": "Every zod event variant must have a matching table write. Numerator: schema.eventTypesWithTableWrite ; denominator: schema.eventTypes.",
+      "blocking": true,
+      "source": "metric-ratio-min",
+      "numeratorMetric": "schema.eventTypesWithTableWrite",
+      "denominatorMetric": "schema.eventTypes",
+      "minimum": 1.0
+    },
+    {
+      "name": "schema.tableReachability",
+      "description": "Every table must be reachable from at least one event (or have a documented exception via SCHEMA-TABLEREACHABILITY-EXEMPT). schema.tablesReached / schema.tables ≥ 0.9.",
+      "blocking": true,
+      "source": "metric-ratio-min",
+      "numeratorMetric": "schema.tablesReached",
+      "denominatorMetric": "schema.tables",
+      "minimum": 0.9
+    },
+    {
+      "name": "schema.migrationRoundtripPassed",
+      "description": "All drizzle migrations must apply cleanly (and ideally rollback). Record `1` per migration that round-tripped clean.",
+      "blocking": true,
+      "source": "metric-min",
+      "metric": "schema.migrationRoundtripPassed",
+      "minimum": 1
+    },
+    {
+      "name": "claims.validatedRatio",
+      "description": "Every reported bug must have been re-validated by claim-validator before clôture.",
+      "blocking": true,
+      "source": "metric-ratio-min",
+      "numeratorMetric": "claims.validated",
+      "denominatorMetric": "claims.reported",
+      "minimum": 1.0
+    }
+  ]
+}

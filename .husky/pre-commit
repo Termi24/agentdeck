@@ -1,8 +1,30 @@
 #!/usr/bin/env sh
 # agentdeck pre-commit — invariants enforced at every commit.
-# See package.json `scripts.check:tool-count` and scripts/check-tool-count.mjs
-# for the v0.0.7 anti-drift fix this hook locks in.
+#   1. tool count parity (v0.0.7 anti-drift fix — see scripts/check-tool-count.mjs).
+#   2. test-target acceptance test on diffs that touch the dispatcher surface
+#      (v0.0.10+) — covers gate engine, templates, methodology synth, CLI.
+#      Skipped automatically when nothing relevant changed (~30s when it runs).
 
 set -e
 
 pnpm check:tool-count
+
+# Re-run the acceptance test only when the dispatcher surface changed. Boots
+# the proxy itself (background) and exercises every template + failure path.
+DISPATCHER_DIFF=$(git diff --cached --name-only -- \
+  'process/test-targets/' \
+  'packages/proxy/src/services/gate-engine.ts' \
+  'packages/proxy/src/services/test-targets-loader.ts' \
+  'packages/proxy/src/services/target-section-synth.ts' \
+  'packages/proxy/src/routes/campaigns.ts' \
+  'packages/proxy/src/routes/methodology.ts' \
+  'packages/shared/src/test-targets/' \
+  'packages/shared/src/db/schema.ts' \
+  'scripts/agentdeck-test.mjs' \
+  'scripts/acceptance-self-test.mjs' \
+  || true)
+
+if [ -n "$DISPATCHER_DIFF" ]; then
+  echo "[pre-commit] dispatcher surface changed → running acceptance-self-test"
+  node scripts/acceptance-self-test.mjs
+fi

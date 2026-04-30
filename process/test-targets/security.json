@@ -1,0 +1,63 @@
+{
+  "target": "security",
+  "description": "Security posture — full RBAC matrix (every role × resource probed in both allow and deny direction), zero secret leak in responses/logs, sandbox path-traversal refusals enforced, declared injection vectors blocked. Pair with rbac-probe.md runbook.",
+  "phaseMatrix": {
+    "phase-0": "full",
+    "phase-1": "full",
+    "phase-2": "full",
+    "phase-3": "full",
+    "phase-4": "full",
+    "phase-5": "full",
+    "phase-6": "full",
+    "phase-7": "full",
+    "phase-9": "full"
+  },
+  "specialists": ["security-auditor", "rest-auditor"],
+  "runbooks": ["rbac-probe.md", "claim-validator.md"],
+  "gates": [
+    {
+      "name": "security.rbacCoverage",
+      "description": "Every role × resource pair declared in the access matrix must be probed in both allow and deny direction. security.rbacProbed / security.rbacDeclared.",
+      "blocking": true,
+      "source": "metric-ratio-min",
+      "numeratorMetric": "security.rbacProbed",
+      "denominatorMetric": "security.rbacDeclared",
+      "minimum": 1.0
+    },
+    {
+      "name": "security.secretsExposed",
+      "description": "Zero secret-pattern hits in proxy responses or logs (api keys, bearer tokens, session ids, etc.).",
+      "blocking": true,
+      "source": "metric-max",
+      "metric": "security.secretsExposed",
+      "maximum": 0
+    },
+    {
+      "name": "security.pathTraversalBlocked",
+      "description": "Every path-traversal attempt declared in the test plan must be refused. security.pathTraversalBlocked / security.pathTraversalAttempted = 1.0.",
+      "blocking": true,
+      "source": "metric-ratio-min",
+      "numeratorMetric": "security.pathTraversalBlocked",
+      "denominatorMetric": "security.pathTraversalAttempted",
+      "minimum": 1.0
+    },
+    {
+      "name": "security.injectionBlocked",
+      "description": "Every declared injection vector (SQL, NoSQL, command, prototype-pollution, …) must be blocked. security.injectionBlocked / security.injectionAttempted = 1.0.",
+      "blocking": true,
+      "source": "metric-ratio-min",
+      "numeratorMetric": "security.injectionBlocked",
+      "denominatorMetric": "security.injectionAttempted",
+      "minimum": 1.0
+    },
+    {
+      "name": "claims.validatedRatio",
+      "description": "Every reported bug re-validated.",
+      "blocking": true,
+      "source": "metric-ratio-min",
+      "numeratorMetric": "claims.validated",
+      "denominatorMetric": "claims.reported",
+      "minimum": 1.0
+    }
+  ]
+}

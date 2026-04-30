@@ -1,0 +1,49 @@
+{
+  "target": "complete",
+  "description": "Strict union of every cible — runs api + ui + schema + security + perf + integration in a single campaign and refuses to close until every gate of every cible is satisfied. Long-running (hours, not minutes). Use only for full release-quality audits or pre-1.0 freeze gates. The default `full` target stays lenient (Principe-10 only) for backward compat — pick `complete` when you mean ‘test everything’.",
+  "phaseMatrix": {
+    "phase-0": "full",
+    "phase-1": "full",
+    "phase-2": "full",
+    "phase-3": "full",
+    "phase-4": "full",
+    "phase-5": "full",
+    "phase-6": "full",
+    "phase-7": "full",
+    "phase-9": "full"
+  },
+  "specialists": [
+    "rest-auditor",
+    "schema-auditor",
+    "ui-playwright-auditor",
+    "security-auditor",
+    "perf-auditor",
+    "integration-auditor",
+    "event-replay-auditor",
+    "sdk-translator-auditor",
+    "mcp-auditor",
+    "regression-tester"
+  ],
+  "runbooks": [
+    "exhaustive-crud-test.md",
+    "isolated-ui-smoke.md",
+    "rbac-probe.md",
+    "claim-validator.md"
+  ],
+  "gates": [
+    { "name": "ui.coverageRatio", "blocking": true, "source": "ui-coverage-principe-10", "hardFloor": 0.5, "warnFloor": 0.7 },
+    { "name": "api.routes.coverage", "blocking": true, "source": "metric-ratio-min", "numeratorMetric": "api.routes.tested", "denominatorMetric": "api.routes.declared", "minimum": 0.95 },
+    { "name": "api.failureClasses.coverage", "blocking": true, "source": "metric-ratio-min", "numeratorMetric": "api.failureClasses.covered", "denominatorMetric": "api.failureClasses.declared", "minimum": 0.85 },
+    { "name": "schema.eventToTableParity", "blocking": true, "source": "metric-ratio-min", "numeratorMetric": "schema.eventTypesWithTableWrite", "denominatorMetric": "schema.eventTypes", "minimum": 1.0 },
+    { "name": "schema.tableReachability", "blocking": true, "source": "metric-ratio-min", "numeratorMetric": "schema.tablesReached", "denominatorMetric": "schema.tables", "minimum": 0.9 },
+    { "name": "security.rbacCoverage", "blocking": true, "source": "metric-ratio-min", "numeratorMetric": "security.rbacProbed", "denominatorMetric": "security.rbacDeclared", "minimum": 1.0 },
+    { "name": "security.secretsExposed", "blocking": true, "source": "metric-max", "metric": "security.secretsExposed", "maximum": 0 },
+    { "name": "security.pathTraversalBlocked", "blocking": true, "source": "metric-ratio-min", "numeratorMetric": "security.pathTraversalBlocked", "denominatorMetric": "security.pathTraversalAttempted", "minimum": 1.0 },
+    { "name": "perf.p95LatencyMs", "blocking": true, "source": "metric-max", "metric": "perf.p95LatencyMs", "maximum": 500 },
+    { "name": "perf.errorRate", "blocking": true, "source": "metric-max", "metric": "perf.errorRate", "maximum": 0.01 },
+    { "name": "integration.eventSourcingInvariant", "blocking": true, "source": "metric-ratio-min", "numeratorMetric": "integration.invariantsPassed", "denominatorMetric": "integration.invariantsTested", "minimum": 1.0 },
+    { "name": "integration.replayDeterminism", "blocking": true, "source": "metric-ratio-min", "numeratorMetric": "integration.replayDeterministic", "denominatorMetric": "integration.replayProbes", "minimum": 1.0 },
+    { "name": "regression.failed", "blocking": true, "source": "metric-max", "metric": "regression.failed", "maximum": 0 },
+    { "name": "claims.validatedRatio", "blocking": true, "source": "metric-ratio-min", "numeratorMetric": "claims.validated", "denominatorMetric": "claims.reported", "minimum": 1.0 }
+  ]
+}

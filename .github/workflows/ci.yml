@@ -33,3 +33,14 @@ jobs:
 
       - name: Typecheck (4 workspaces)
         run: pnpm typecheck
+
+      - name: DB migrations (drizzle)
+        run: pnpm db:migrate
+
+      - name: Test-target dispatcher acceptance (v0.0.10+)
+        # Boots the proxy in background, validates every process/test-targets/*.json
+        # template loads, every campaign target can be created, every target-* methodology
+        # section synthesizes, failure paths return crisp 4xx, and the legacy
+        # Principe-10 backward-compat shim still produces the historical response shape.
+        # Wall-clock ~30 s. Does not require ANTHROPIC_API_KEY (proxy-only).
+        run: node scripts/acceptance-self-test.mjs

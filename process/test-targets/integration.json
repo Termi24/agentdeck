@@ -1,0 +1,55 @@
+{
+  "target": "integration",
+  "description": "Cross-component integration — event-sourcing invariants (REST aggregate counts == events fold), replay scrubber determinism (UI at scrubIndex=N == fresh fold of events[0..N]), MCP↔proxy attribution invariants. Pair with the event-replay-auditor + integration-auditor specialists.",
+  "phaseMatrix": {
+    "phase-0": "full",
+    "phase-1": "full",
+    "phase-2": "full",
+    "phase-3": "light",
+    "phase-4": "full",
+    "phase-5": "full",
+    "phase-6": "full",
+    "phase-7": "full",
+    "phase-9": "full"
+  },
+  "specialists": ["event-replay-auditor", "integration-auditor", "sdk-translator-auditor", "mcp-auditor"],
+  "runbooks": ["claim-validator.md"],
+  "gates": [
+    {
+      "name": "integration.eventSourcingInvariant",
+      "description": "Every dedicated REST endpoint aggregate count must equal the fold of the corresponding events. integration.invariantsPassed / integration.invariantsTested = 1.0.",
+      "blocking": true,
+      "source": "metric-ratio-min",
+      "numeratorMetric": "integration.invariantsPassed",
+      "denominatorMetric": "integration.invariantsTested",
+      "minimum": 1.0
+    },
+    {
+      "name": "integration.replayDeterminism",
+      "description": "For every probed scrubIndex N, the UI rendered at scrubIndex=N must equal a fresh fold of events[0..N]. integration.replayDeterministic / integration.replayProbes = 1.0.",
+      "blocking": true,
+      "source": "metric-ratio-min",
+      "numeratorMetric": "integration.replayDeterministic",
+      "denominatorMetric": "integration.replayProbes",
+      "minimum": 1.0
+    },
+    {
+      "name": "integration.attributionAccuracy",
+      "description": "SDK sub-agent tool-uses must be attributed to the correct sub-agent (not the orchestrator). integration.attributionsCorrect / integration.attributionsProbed ≥ 0.95.",
+      "blocking": true,
+      "source": "metric-ratio-min",
+      "numeratorMetric": "integration.attributionsCorrect",
+      "denominatorMetric": "integration.attributionsProbed",
+      "minimum": 0.95
+    },
+    {
+      "name": "claims.validatedRatio",
+      "description": "Every reported bug re-validated.",
+      "blocking": true,
+      "source": "metric-ratio-min",
+      "numeratorMetric": "claims.validated",
+      "denominatorMetric": "claims.reported",
+      "minimum": 1.0
+    }
+  ]
+}

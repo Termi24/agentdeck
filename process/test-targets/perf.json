@@ -1,0 +1,51 @@
+{
+  "target": "perf",
+  "description": "Performance — REST p50/p95 latency, throughput, memory delta over a synthetic load. Default thresholds are agentdeck-tuned (proxy is local, sub-millisecond budgets unrealistic for production SaaS). Override per project by recording your own thresholds via PERF-EXEMPT lines and adjust the template, OR fork the template into process/test-targets/perf-<project>.json.",
+  "phaseMatrix": {
+    "phase-0": "full",
+    "phase-1": "light",
+    "phase-2": "full",
+    "phase-3": "light",
+    "phase-4": "full",
+    "phase-5": "light",
+    "phase-6": "full",
+    "phase-7": "full",
+    "phase-9": "full"
+  },
+  "specialists": ["perf-auditor"],
+  "runbooks": [],
+  "gates": [
+    {
+      "name": "perf.p95LatencyMs",
+      "description": "REST endpoint p95 latency under synthetic load. Default ceiling 500 ms — tune per project.",
+      "blocking": true,
+      "source": "metric-max",
+      "metric": "perf.p95LatencyMs",
+      "maximum": 500
+    },
+    {
+      "name": "perf.throughputRps",
+      "description": "Sustained requests-per-second over the load window. Default floor 50 rps — tune per project.",
+      "blocking": true,
+      "source": "metric-min",
+      "metric": "perf.throughputRps",
+      "minimum": 50
+    },
+    {
+      "name": "perf.memoryLeakDeltaMb",
+      "description": "RSS delta between start and end of the load window. Default ceiling 50 MB — tune per project. Indicates a leak when the load test ends but memory does not return.",
+      "blocking": true,
+      "source": "metric-max",
+      "metric": "perf.memoryLeakDeltaMb",
+      "maximum": 50
+    },
+    {
+      "name": "perf.errorRate",
+      "description": "Fraction of requests that errored under load. Hard ceiling 1 %.",
+      "blocking": true,
+      "source": "metric-max",
+      "metric": "perf.errorRate",
+      "maximum": 0.01
+    }
+  ]
+}

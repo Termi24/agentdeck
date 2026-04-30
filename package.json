@@ -1,12 +1,15 @@
 {
   "name": "agentdeck",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "private": true,
   "description": "Live observability workspace for Claude Agent SDK orchestrators and subagents.",
   "packageManager": "pnpm@9.12.0",
   "engines": {
     "node": ">=22.0.0",
     "pnpm": ">=9.0.0"
+  },
+  "bin": {
+    "agentdeck-test": "scripts/agentdeck-test.mjs"
   },
   "scripts": {
     "dev": "turbo run dev",
@@ -15,6 +18,7 @@
     "typecheck": "turbo run typecheck",
     "check:tool-count": "node scripts/check-tool-count.mjs",
     "test": "turbo run test",
+    "test:target": "node scripts/agentdeck-test.mjs",
     "clean": "turbo run clean && rm -rf node_modules",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yaml,yml}\"",
     "db:generate": "pnpm --filter @agentdeck/shared db:generate",

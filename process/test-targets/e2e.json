@@ -1,0 +1,54 @@
+{
+  "target": "e2e",
+  "description": "End-to-end user flows — api ∩ ui. Personas drive the UI through declared user flows; each flow exercises both the frontend and the backend behind it. Combines the api and ui gate sets plus a flow-coverage gate.",
+  "phaseMatrix": {
+    "phase-0": "full",
+    "phase-1": "full",
+    "phase-2": "full",
+    "phase-3": "full",
+    "phase-4": "full",
+    "phase-5": "full",
+    "phase-6": "full",
+    "phase-7": "full",
+    "phase-9": "full"
+  },
+  "specialists": ["ui-playwright-auditor", "rest-auditor", "integration-auditor"],
+  "runbooks": ["isolated-ui-smoke.md", "exhaustive-crud-test.md", "claim-validator.md"],
+  "gates": [
+    {
+      "name": "e2e.flowsCovered",
+      "description": "Every declared user flow must have at least one passing end-to-end probe. Numerator: e2e.flowsCovered ; denominator: e2e.flowsDeclared.",
+      "blocking": true,
+      "source": "metric-ratio-min",
+      "numeratorMetric": "e2e.flowsCovered",
+      "denominatorMetric": "e2e.flowsDeclared",
+      "minimum": 0.9
+    },
+    {
+      "name": "ui.coverageRatio",
+      "description": "Methodology Principe 10 — Phase-4 personas drive via browser_* only.",
+      "blocking": true,
+      "source": "ui-coverage-principe-10",
+      "hardFloor": 0.5,
+      "warnFloor": 0.7
+    },
+    {
+      "name": "api.routes.coverage",
+      "description": "Every backend route reachable from a declared flow must be probed.",
+      "blocking": true,
+      "source": "metric-ratio-min",
+      "numeratorMetric": "api.routes.tested",
+      "denominatorMetric": "api.routes.declared",
+      "minimum": 0.9
+    },
+    {
+      "name": "claims.validatedRatio",
+      "description": "Every reported bug re-validated.",
+      "blocking": true,
+      "source": "metric-ratio-min",
+      "numeratorMetric": "claims.validated",
+      "denominatorMetric": "claims.reported",
+      "minimum": 1.0
+    }
+  ]
+}

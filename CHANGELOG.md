@@ -5,6 +5,134 @@ and to the user vault under `01-Projects/agentdeck/03-Sprints/Recent-Releases.md
 where applicable. Version line items aligned across the 4 workspaces (root,
 proxy, mcp, shared, web) — single bump per release.
 
+## [0.0.10] — 2026-04-30
+
+> Test-target dispatcher. agentdeck becomes a generic QA outil with a typed
+> CLI (`agentdeck-test <api|ui|schema|e2e|security|perf|integration|regression|complete|full>`)
+> backed by 10 versioned templates, a generic gate engine, and a methodology
+> route that synthesizes per-target briefs from the templates. The legacy
+> Principe-10 UI gate is preserved as one gate among many — backward-compat is
+> 100 % (existing campaigns default to `target='full'` which ships only that
+> historical gate). 30/30 acceptance checks green.
+
+### Added — schema (additive migration `0007_cute_pepper_potts.sql`)
+
+- **`campaigns.target`** (TEXT NOT NULL DEFAULT 'full') — the test-target
+  template the campaign was started against. Backfilled to `'full'` on
+  existing rows; `'full'` template ships exactly the legacy Principe-10 gate.
+- **`campaigns.template_name`** (TEXT) — the resolved template name (today
+  same as `target`; reserved for project-specific overrides).
+- **`campaigns.gate_results_json`** (TEXT) — snapshot of the gate verdict at
+  `end_campaign` for historical reads.
+- **New table `campaign_gate_results`** — one row per gate per evaluation
+  (campaignId FK, gateName, valueJson, thresholdJson, passed, blocking,
+  waived, detailJson, evaluatedAt). Indexed by campaignId + gateName.
+
+### Added — test-target templates (`process/test-targets/*.json`)
+
+- 10 templates: `api`, `ui`, `schema`, `e2e`, `security`, `perf`,
+  `integration`, `regression`, `complete` (strict union), `full` (lenient
+  default = Principe-10 only).
+- Each declares: `phaseMatrix` (full/light/skip per 9-phase step),
+  `specialists` (which `.claude/agents/*.md` to fan out to), `runbooks`
+  (which procedures to attach), `gates` (BLOCKING constraints verified at
+  end_campaign).
+- Schema lives in `packages/shared/src/test-targets/index.ts` (Zod).
+- Loader in `packages/proxy/src/services/test-targets-loader.ts` (boot-time,
+  fault-tolerant — corrupt template logs to stderr, never crashes).
+
+### Added — gate engine (`packages/proxy/src/services/gate-engine.ts`)
+
+- 4 generic gate kinds:
+  - `ui-coverage-principe-10` — per-persona UI ratio with `UI-EXEMPT` waivers.
+  - `metric-min` — `record_campaign_metric` value ≥ minimum.
+  - `metric-max` — value ≤ maximum.
+  - `metric-ratio-min` — `numerator / denominator` ≥ minimum (missing
+    denominator → fail; no silent pass).
+- `evaluateAll(campaignId)` runs every gate of the campaign's template,
+  persists outcomes to `campaign_gate_results` (idempotent — re-runs OVERWRITE),
+  returns `{passed, gates, blockers, warnings}`.
+- Generic waiver format: `<GATE-NAME>-EXEMPT: <subject>: <reason>` lines in
+  `retrospective.toolingFeedback`. The historical `UI-EXEMPT:` shape is still
+  honoured for the Principe-10 gate.
+
+### Added — `end_campaign` rewrite
+
+- Now delegates to `gate-engine.evaluateAll(campaignId)`. Refuses 422 when
+  any blocking gate fails (or 422 with the legacy `ui_coverage_violation`
+  shape when only Principe-10 failed — backward-compat shim in
+  `packages/proxy/src/routes/campaigns.ts`).
+- On success: persists `gateResultsJson` on the campaign, returns the
+  generic `{gates, target, warnings}` AND the legacy `{uiCoverage}` shape
+  (when the Principe-10 gate ran) so dashboards keep working.
+- `start_qa_campaign` now accepts `target` (default `'full'`); unknown
+  target → 400 `unknown_target` with `availableTargets`.
+
+### Added — methodology synthesizer
+
+- `read_methodology({section:"target-<name>"})` synthesizes the brief
+  on-the-fly from the JSON template (phase weights, specialists, runbooks,
+  gates table, how-to instructions, runbooks inlined). Single source of
+  truth shared with the gate engine — drift impossible by construction.
+- `read_methodology` Zod input loosened from `enum(...)` to `string` to
+  accept the dynamic `target-*` sections. Static section enum still
+  validated server-side.
+- `GET /campaigns/templates` lists every loaded template (CLI uses this).
+
+### Added — universal slash command + orchestrateur paramétré
+
+- **`process/commands/agentdeck-test.md`** — `/agentdeck-test <target> [campaignId] [project]`
+  is the human entry point. Reads the brief, fans out to the spécialistes,
+  records the metrics gate-engine reads, refuses to mark `completed` while
+  any blocking gate is failing.
+- **`.claude/agents/test-target-orchestrator.md`** — sub-agent persona with
+  the same protocol so any parent SDK orchestrator can `Task()`-spawn a
+  typed test campaign.
+
+### Added — CLI binary (`scripts/agentdeck-test.mjs`, `bin: agentdeck-test`)
+
+- `agentdeck-test <target> [project-path]` pre-creates the campaign with
+  the right target, spawns `claude -p "/agentdeck-test ..."` with bypass
+  perms + `mcp__agentdeck__*` allowlist, streams Claude's stdout, and
+  prints a coloured gate verdict at exit.
+- Exit codes follow `--fail-on=hard|warn|none` (default `hard` = exit 1 on
+  any blocking gate failure).
+- `--list-targets` prints the 10 templates with their gates inline.
+- `--json` for machine-readable output.
+
+### Added — acceptance test + CI + pre-commit
+
+- **`scripts/acceptance-self-test.mjs`** — 30 proxy-layer checks: every
+  template loads, every target accepts a campaign, every `target-*` section
+  synthesizes, every failure path returns crisp 4xx, the legacy zero-target
+  end-to-end produces the historical `uiCoverage` shape. Wall-clock ~30 s.
+  No Claude / API credentials required.
+- **`.github/workflows/ci.yml`** — adds `pnpm db:migrate` + the acceptance
+  test as gating jobs (after typecheck + tool-count).
+- **`.husky/pre-commit`** — runs the acceptance test only when the
+  dispatcher surface (`process/test-targets/`, gate-engine, templates,
+  methodology, CLI) changed in the staged diff.
+
+### Migrated
+
+- Principe-10 UI-coverage gate ported from `packages/proxy/src/routes/campaigns.ts`
+  (lines 8-235 in v0.0.9) to the new gate engine. Logic preserved to the
+  line: `MIN_TOOL_CALLS_FOR_RATIO=5`, `EXCLUDED_ROLES`, the `isApiBypassCall`
+  classifier, the `UI-EXEMPT:` waiver parser. Two response shims preserve
+  the legacy 422 + 200 payloads byte-for-byte.
+
+### Notes
+
+- This is a strictly additive release. Existing CLIs / skills / dashboards
+  see no behavior change unless they opt into a non-`full` target.
+- Template `full` stays lenient on purpose. `complete` is the strict union
+  for users who want the maximalist "test everything" mode the dispatcher
+  was built for.
+- 10/10 templates parsed clean; 30/30 acceptance checks green; 4/4 typecheck
+  green; tool-count parity 47/47/47.
+
+---
+
 ## [0.0.9] — 2026-04-28
 
 > Style B web redesign + 2-page model + agentdeck-run skill + bridge tooling.
