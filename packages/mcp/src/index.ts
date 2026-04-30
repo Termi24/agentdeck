@@ -527,8 +527,9 @@ async function dispatch(name: ToolName, args: Record<string, unknown>): Promise<
         projectName: String(args.projectName ?? ''),
         cliSource: String(args.cliSource ?? 'claude-code'),
         notes: typeof args.notes === 'string' ? args.notes : undefined,
+        target: typeof args.target === 'string' && args.target.length > 0 ? args.target : 'full',
       });
-      return `Campaign ${r.campaignId} started at ${r.startedAt}.\n\nNext steps:\n1. Pass campaignId="${r.campaignId}" to record_campaign_metric calls\n2. At the end, submit_campaign_retrospective then end_campaign\n3. Browse history at http://127.0.0.1:3000/campaigns`;
+      return `Campaign ${r.campaignId} started at ${r.startedAt} (target="${r.target}").\n\nNext steps:\n1. Pass campaignId="${r.campaignId}" to record_campaign_metric calls\n2. Read read_methodology({section:"target-${r.target}"}) for the target's specialists, runbooks, and BLOCKING gates\n3. At the end, submit_campaign_retrospective then end_campaign — gates are evaluated automatically and end_campaign returns 422 if any blocking gate fails\n4. Browse history at http://127.0.0.1:3000/campaigns`;
     }
     case 'record_campaign_metric': {
       const campaignId = String(args.campaignId ?? '');

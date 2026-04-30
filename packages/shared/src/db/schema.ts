@@ -278,6 +278,13 @@ export const agentCancelRequests = sqliteTable(
 // (process/10-methodologie-unifiee.md). Decoupled from sessions so a single
 // campaign can span e.g. an SDK orchestrator + a Claude CLI bridge + a
 // claim-validator running from a different CLI.
+//
+// `target` (v0.0.10+) selects the test-target template (process/test-targets/*.yaml)
+// that pondère les phases, fan-outs spécialistes, et gates bloquants. Default
+// `full` reproduit le comportement historique (Principe 10 UI-coverage gate).
+// `templateName` est la version résolue (souvent identique à target, mais peut
+// pointer un sur-template projet-spécifique). `gateResultsJson` est rempli
+// au end_campaign — snapshot lisible du verdict pour l'historique.
 export const campaigns = sqliteTable(
   'campaigns',
   {
@@ -285,6 +292,9 @@ export const campaigns = sqliteTable(
     projectName: text('project_name').notNull(),
     cliSource: text('cli_source').notNull(),
     notes: text('notes'),
+    target: text('target').notNull().default('full'),
+    templateName: text('template_name'),
+    gateResultsJson: text('gate_results_json'),
     status: text('status', { enum: ['running', 'completed', 'aborted', 'failed'] })
       .notNull()
       .default('running'),
@@ -293,6 +303,38 @@ export const campaigns = sqliteTable(
   },
   (table) => ({
     statusIdx: index('campaigns_status_idx').on(table.status),
+    targetIdx: index('campaigns_target_idx').on(table.target),
+  }),
+);
+
+/**
+ * Per-gate evaluation result attached to a campaign at end_campaign.
+ *
+ * One row per gate declared in the active template — even passing gates are
+ * persisted so the dashboard / CLI can render the full verdict, not only
+ * violations. `value` is JSON-encoded (numbers, booleans, or short strings).
+ * `blocking` mirrors the template flag at evaluation time so historical reads
+ * stay correct even if the template later changes.
+ */
+export const campaignGateResults = sqliteTable(
+  'campaign_gate_results',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    campaignId: text('campaign_id')
+      .notNull()
+      .references(() => campaigns.id, { onDelete: 'cascade' }),
+    gateName: text('gate_name').notNull(),
+    valueJson: text('value_json').notNull(),
+    thresholdJson: text('threshold_json').notNull(),
+    passed: integer('passed', { mode: 'boolean' }).notNull(),
+    blocking: integer('blocking', { mode: 'boolean' }).notNull(),
+    waived: integer('waived', { mode: 'boolean' }).notNull().default(false),
+    detailJson: text('detail_json'),
+    evaluatedAt: text('evaluated_at').notNull().default(sql`(current_timestamp)`),
+  },
+  (table) => ({
+    campaignIdx: index('campaign_gate_results_campaign_idx').on(table.campaignId),
+    nameIdx: index('campaign_gate_results_name_idx').on(table.gateName),
   }),
 );
 

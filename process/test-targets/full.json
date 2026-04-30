@@ -1,0 +1,27 @@
+{
+  "target": "full",
+  "description": "Full QA campaign — replicates the historical Principe-10 UI-coverage gate without any additional constraint. Default template when start_qa_campaign is called without an explicit target.",
+  "phaseMatrix": {
+    "phase-0": "full",
+    "phase-1": "full",
+    "phase-2": "full",
+    "phase-3": "full",
+    "phase-4": "full",
+    "phase-5": "full",
+    "phase-6": "full",
+    "phase-7": "full",
+    "phase-9": "full"
+  },
+  "specialists": [],
+  "runbooks": [],
+  "gates": [
+    {
+      "name": "ui.coverageRatio",
+      "description": "Methodology Principe 10 — Phase-4 personas drive the target via browser_* only. Hard fail at <50%, warning <70%, waiver via UI-EXEMPT: <persona>: <reason> in retrospective.toolingFeedback.",
+      "blocking": true,
+      "source": "ui-coverage-principe-10",
+      "hardFloor": 0.5,
+      "warnFloor": 0.7
+    }
+  ]
+}

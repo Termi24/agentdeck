@@ -1,114 +1,30 @@
-import { randomUUID } from 'node:crypto';
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { and, eq, desc, sql } from 'drizzle-orm';
-import { agents, campaigns, campaignMetrics, campaignRetrospectives, sessions, toolCalls } from '@agentdeck/shared';
+import { randomUUID } from 'node:crypto';
+import { desc, eq } from 'drizzle-orm';
+import { campaignGateResults, campaignMetrics, campaignRetrospectives, campaigns } from '@agentdeck/shared';
 import { getDb } from '../db.js';
+import { evaluateAll, type GateOutcome } from '../services/gate-engine.js';
+import { getTemplate, listTemplateNames } from '../services/test-targets-loader.js';
 
 /**
- * Methodology Principe 10 — UI-only en Phase 4 personas.
+ * Methodology gates (v0.0.10+).
  *
- * Computes per-persona uiCoverageRatio = browser_* / (browser_* + API direct)
- * and surfaces the result on end_campaign. Blocks the campaign close when
- * any non-orchestrator persona has < 50 % UI coverage AND the retrospective
- * does not list an explicit waiver.
- *
- * Waivers live in retrospective.toolingFeedback as lines matching:
- *   UI-EXEMPT: <persona name>: <reason>
- * Multiple waivers are allowed (one per line).
+ * `end_campaign` delegates to `services/gate-engine.evaluateAll(campaignId)`
+ * which evaluates every gate declared by the campaign's test-target template
+ * (process/test-targets/<target>.json) and persists the verdict to
+ * `campaign_gate_results`. Backward-compat shim below preserves the legacy
+ * 422 `ui_coverage_violation` response shape when the only failing gate is
+ * the historical Principe-10 UI-coverage gate (template `full` ships exactly
+ * that gate, so unchanged callers get unchanged behavior).
  */
-const UI_COVERAGE_HARD_FLOOR = 0.5;
-const UI_COVERAGE_WARN_FLOOR = 0.7;
-const MIN_TOOL_CALLS_FOR_RATIO = 5; // below this we don't have enough data to judge
-const EXCLUDED_ROLES = new Set(['orchestrator', 'root', 'bridge', 'claim-validator', 'skill']);
-
-interface PersonaCoverage {
-  agentId: string;
-  agentName: string;
-  role: string | null;
-  sessionId: string;
-  uiCalls: number;
-  apiCalls: number;
-  totalRelevantCalls: number;
-  ratio: number | null;
-}
-
-function isApiBypassCall(toolName: string, inputJson: string | null): boolean {
-  if (toolName === 'validate_claim' || toolName === 'validate_claims_bulk') return true;
-  if (toolName === 'sandbox_exec' && inputJson) {
-    try {
-      const parsed = JSON.parse(inputJson) as { command?: string };
-      const cmd = (parsed.command ?? '').toLowerCase();
-      if (/\b(curl|wget|httpie|http\s)/.test(cmd)) return true;
-    } catch {
-      // not json → ignore
-    }
-  }
-  return false;
-}
-
-function computePersonaCoverage(campaignProjectName: string): PersonaCoverage[] {
-  const db = getDb();
-  // Sessions of this campaign = sessions whose projectId matches projectName.
-  const personaRows = db
-    .select({
-      agentId: agents.id,
-      agentName: agents.name,
-      role: agents.role,
-      sessionId: agents.sessionId,
-      parentAgentId: agents.parentAgentId,
-    })
-    .from(agents)
-    .innerJoin(sessions, eq(sessions.id, agents.sessionId))
-    .where(eq(sessions.projectId, campaignProjectName))
-    .all();
-
-  const out: PersonaCoverage[] = [];
-  for (const p of personaRows) {
-    if (p.parentAgentId === null) continue; // skip root / bridge / orchestrator-as-root
-    const role = (p.role ?? '').toLowerCase();
-    if (EXCLUDED_ROLES.has(role)) continue;
-
-    const calls = db
-      .select({ toolName: toolCalls.toolName, input: toolCalls.input })
-      .from(toolCalls)
-      .where(eq(toolCalls.agentId, p.agentId))
-      .all();
-
-    let ui = 0;
-    let api = 0;
-    for (const c of calls) {
-      if (c.toolName.startsWith('browser_')) ui++;
-      else if (isApiBypassCall(c.toolName, typeof c.input === 'string' ? c.input : JSON.stringify(c.input))) api++;
-    }
-    const total = ui + api;
-    out.push({
-      agentId: p.agentId,
-      agentName: p.agentName,
-      role: p.role,
-      sessionId: p.sessionId,
-      uiCalls: ui,
-      apiCalls: api,
-      totalRelevantCalls: total,
-      ratio: total === 0 ? null : ui / total,
-    });
-  }
-  return out;
-}
-
-function parseWaivers(toolingFeedback: string): Set<string> {
-  const out = new Set<string>();
-  for (const line of toolingFeedback.split(/\r?\n/)) {
-    const m = /^UI-EXEMPT:\s*([^:]+?)\s*:\s*(.+)$/.exec(line.trim());
-    if (m && m[1]) out.add(m[1].trim().toLowerCase());
-  }
-  return out;
-}
 
 const StartBody = z.object({
   projectName: z.string().min(1),
   cliSource: z.string().min(1).default('claude-code'),
   notes: z.string().optional(),
+  /** Test-target template name. Default `full` reproduces the historical Principe-10-only campaign. */
+  target: z.string().min(1).default('full'),
 });
 
 const MetricBody = z.object({
@@ -130,10 +46,35 @@ const EndBody = z.object({
 });
 
 export const registerCampaignsRoutes: FastifyPluginAsync = async (app) => {
+  // List available test-target templates (CLI uses this to validate `--target`)
+  app.get('/campaigns/templates', async () => {
+    const names = listTemplateNames();
+    const templates = names
+      .map((n) => getTemplate(n))
+      .filter((t): t is NonNullable<typeof t> => Boolean(t))
+      .map((t) => ({
+        target: t.target,
+        description: t.description,
+        specialists: t.specialists,
+        runbooks: t.runbooks,
+        gates: t.gates.map((g) => ({ name: g.name, blocking: g.blocking, source: g.source })),
+      }));
+    return { templates };
+  });
+
   // Create a campaign
   app.post('/campaigns', async (request, reply) => {
     const parsed = StartBody.safeParse(request.body);
     if (!parsed.success) return reply.badRequest(parsed.error.message);
+    const tpl = getTemplate(parsed.data.target);
+    if (!tpl) {
+      return reply.code(400).send({
+        error: 'unknown_target',
+        message: `Unknown test-target "${parsed.data.target}". Available: ${listTemplateNames().join(', ') || '(none — process/test-targets/ is empty)'}`,
+        target: parsed.data.target,
+        availableTargets: listTemplateNames(),
+      });
+    }
     const id = `qa-${randomUUID().replace(/-/g, '').slice(0, 8)}`;
     const at = new Date().toISOString();
     getDb()
@@ -143,11 +84,13 @@ export const registerCampaignsRoutes: FastifyPluginAsync = async (app) => {
         projectName: parsed.data.projectName,
         cliSource: parsed.data.cliSource,
         notes: parsed.data.notes ?? null,
+        target: parsed.data.target,
+        templateName: tpl.target,
         status: 'running',
         startedAt: at,
       })
       .run();
-    return reply.code(201).send({ campaignId: id, startedAt: at });
+    return reply.code(201).send({ campaignId: id, startedAt: at, target: parsed.data.target });
   });
 
   // List campaigns (paginated by createdAt desc)
@@ -156,7 +99,7 @@ export const registerCampaignsRoutes: FastifyPluginAsync = async (app) => {
     return { campaigns: rows };
   });
 
-  // Get a campaign + its metrics + its retrospective
+  // Get a campaign + its metrics + its retrospective + its gate results
   app.get('/campaigns/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
     const camp = getDb().select().from(campaigns).where(eq(campaigns.id, id)).get();
@@ -172,7 +115,13 @@ export const registerCampaignsRoutes: FastifyPluginAsync = async (app) => {
       .from(campaignRetrospectives)
       .where(eq(campaignRetrospectives.campaignId, id))
       .get();
-    return { campaign: camp, metrics, retrospective: retro ?? null };
+    const gates = getDb()
+      .select()
+      .from(campaignGateResults)
+      .where(eq(campaignGateResults.campaignId, id))
+      .orderBy(campaignGateResults.evaluatedAt)
+      .all();
+    return { campaign: camp, metrics, retrospective: retro ?? null, gates };
   });
 
   // Record a metric
@@ -263,58 +212,133 @@ export const registerCampaignsRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    // ── Principe 10 gate ────────────────────────────────────────────────
-    const coverage = computePersonaCoverage(camp.projectName);
-    const waivers = parseWaivers(retro.toolingFeedback);
-    const violators: PersonaCoverage[] = [];
-    const warned: PersonaCoverage[] = [];
-    for (const p of coverage) {
-      if (p.totalRelevantCalls < MIN_TOOL_CALLS_FOR_RATIO) continue; // not enough data
-      if (p.ratio === null) continue;
-      const waived = waivers.has(p.agentName.toLowerCase());
-      if (p.ratio < UI_COVERAGE_HARD_FLOOR && !waived) {
-        violators.push(p);
-      } else if (p.ratio < UI_COVERAGE_WARN_FLOOR && !waived) {
-        warned.push(p);
+    // ── Gate engine ─────────────────────────────────────────────────────
+    const verdict = evaluateAll(id);
+    if (!verdict.passed) {
+      // Backward-compat: when the only blocking failure is the legacy
+      // Principe-10 gate, return the historical 422 `ui_coverage_violation`
+      // shape so existing dashboards and the agentdeck-review skill keep
+      // working untouched.
+      const onlyPrincipe10 =
+        verdict.blockers.length === verdict.gates.filter((g) => !g.passed && g.blocking && !g.waived).length &&
+        verdict.blockers.every((g) => g.source === 'ui-coverage-principe-10');
+      if (onlyPrincipe10 && verdict.blockers.length === 1) {
+        return reply.code(422).send(buildLegacyPrinciple10Response(verdict.blockers[0]!));
       }
-    }
-    if (violators.length > 0) {
       return reply.code(422).send({
-        error: 'ui_coverage_violation',
+        error: 'gate_violation',
         message:
-          `Methodology Principe 10 violation: ${violators.length} persona(s) below ${Math.round(UI_COVERAGE_HARD_FLOOR * 100)}% UI coverage and not waived. ` +
-          `Add a "UI-EXEMPT: <agent name>: <reason>" line per persona to retrospective.toolingFeedback, OR re-run the persona via browser_* tools, then retry end_campaign.`,
-        floor: UI_COVERAGE_HARD_FLOOR,
-        warnFloor: UI_COVERAGE_WARN_FLOOR,
-        violators: violators.map((p) => ({
-          agentId: p.agentId,
-          agentName: p.agentName,
-          role: p.role,
-          sessionId: p.sessionId,
-          uiCalls: p.uiCalls,
-          apiCalls: p.apiCalls,
-          ratio: p.ratio,
-        })),
+          `${verdict.blockers.length} blocking gate(s) failed. Fix the underlying metric(s) or add waiver lines ` +
+          `("<GATE-NAME>-EXEMPT: <subject>: <reason>") to retrospective.toolingFeedback, then retry end_campaign.`,
+        target: camp.target,
+        blockers: verdict.blockers.map(serializeGate),
+        warnings: verdict.warnings.map(serializeGate),
+        gates: verdict.gates.map(serializeGate),
       });
     }
 
     const at = new Date().toISOString();
     getDb()
       .update(campaigns)
-      .set({ status: parsed.data.status, endedAt: at })
+      .set({
+        status: parsed.data.status,
+        endedAt: at,
+        gateResultsJson: JSON.stringify(verdict.gates.map(serializeGate)),
+      })
       .where(eq(campaigns.id, id))
       .run();
+
+    // Legacy shape: keep `uiCoverage` summary on success when the Principe-10
+    // gate ran (template `full` and template `ui` ship it). Dashboards rely
+    // on this surface today.
+    const principe10 = verdict.gates.find((g) => g.source === 'ui-coverage-principe-10');
+    const uiCoverage = principe10 ? buildLegacyPrinciple10Summary(principe10) : undefined;
+
     return {
       ok: true,
       status: parsed.data.status,
       endedAt: at,
-      uiCoverage: {
-        floor: UI_COVERAGE_HARD_FLOOR,
-        warnFloor: UI_COVERAGE_WARN_FLOOR,
-        personasEvaluated: coverage.length,
-        warnings: warned.map((p) => ({ agentName: p.agentName, ratio: p.ratio, uiCalls: p.uiCalls, apiCalls: p.apiCalls })),
-        all: coverage.map((p) => ({ agentName: p.agentName, ratio: p.ratio, uiCalls: p.uiCalls, apiCalls: p.apiCalls, totalRelevantCalls: p.totalRelevantCalls })),
-      },
+      target: camp.target,
+      gates: verdict.gates.map(serializeGate),
+      warnings: verdict.warnings.map(serializeGate),
+      ...(uiCoverage ? { uiCoverage } : {}),
     };
   });
 };
+
+// ── Helpers — backward-compat shims for legacy Principe-10 response shapes ──
+
+interface LegacyPersona {
+  agentId: string;
+  agentName: string;
+  role: string | null;
+  sessionId: string;
+  uiCalls: number;
+  apiCalls: number;
+  ratio: number | null;
+  totalRelevantCalls?: number;
+}
+
+interface LegacyDetail {
+  violators?: LegacyPersona[];
+  warnings?: LegacyPersona[];
+  all?: LegacyPersona[];
+}
+
+function serializeGate(g: GateOutcome) {
+  return {
+    name: g.name,
+    source: g.source,
+    blocking: g.blocking,
+    passed: g.passed,
+    waived: g.waived,
+    value: g.value,
+    threshold: g.threshold,
+    detail: g.detail,
+  };
+}
+
+function buildLegacyPrinciple10Response(blocker: GateOutcome) {
+  const t = blocker.threshold as { hardFloor?: number; warnFloor?: number };
+  const hardFloor = t.hardFloor ?? 0.5;
+  const warnFloor = t.warnFloor ?? 0.7;
+  const detail = (blocker.detail ?? {}) as LegacyDetail;
+  const violators = detail.violators ?? [];
+  return {
+    error: 'ui_coverage_violation',
+    message:
+      `Methodology Principe 10 violation: ${violators.length} persona(s) below ${Math.round(hardFloor * 100)}% UI coverage and not waived. ` +
+      `Add a "UI-EXEMPT: <agent name>: <reason>" line per persona to retrospective.toolingFeedback, OR re-run the persona via browser_* tools, then retry end_campaign.`,
+    floor: hardFloor,
+    warnFloor: warnFloor,
+    violators: violators.map((p) => ({
+      agentId: p.agentId,
+      agentName: p.agentName,
+      role: p.role,
+      sessionId: p.sessionId,
+      uiCalls: p.uiCalls,
+      apiCalls: p.apiCalls,
+      ratio: p.ratio,
+    })),
+  };
+}
+
+function buildLegacyPrinciple10Summary(g: GateOutcome) {
+  const t = g.threshold as { hardFloor?: number; warnFloor?: number };
+  const detail = (g.detail ?? {}) as LegacyDetail;
+  const all = detail.all ?? [];
+  const warnings = detail.warnings ?? [];
+  return {
+    floor: t.hardFloor ?? 0.5,
+    warnFloor: t.warnFloor ?? 0.7,
+    personasEvaluated: all.length,
+    warnings: warnings.map((p) => ({ agentName: p.agentName, ratio: p.ratio, uiCalls: p.uiCalls, apiCalls: p.apiCalls })),
+    all: all.map((p) => ({
+      agentName: p.agentName,
+      ratio: p.ratio,
+      uiCalls: p.uiCalls,
+      apiCalls: p.apiCalls,
+      totalRelevantCalls: p.totalRelevantCalls,
+    })),
+  };
+}

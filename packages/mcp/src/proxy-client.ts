@@ -589,8 +589,8 @@ export class ProxyClient {
     );
   }
 
-  startCampaign(input: { projectName: string; cliSource: string; notes?: string }) {
-    return this.request<{ campaignId: string; startedAt: string }>('POST', '/campaigns', input);
+  startCampaign(input: { projectName: string; cliSource: string; notes?: string; target?: string }) {
+    return this.request<{ campaignId: string; startedAt: string; target: string }>('POST', '/campaigns', input);
   }
 
   recordCampaignMetric(

@@ -61,35 +61,25 @@ export const AwaitUserInputInput = z.object({
 
 export const ReadMethodologyInput = z.object({
   section: z
-    .enum([
-      'overview',
-      'principles',
-      'tooling',
-      'communication',
-      'pre-start',
-      'personas',
-      'phase-0',
-      'phase-1',
-      'phase-2',
-      'phase-3',
-      'phase-4',
-      'phase-5',
-      'phase-6',
-      'phase-7',
-      'phase-9',
-      'conventions',
-      'templates',
-      'troubleshooting',
-      'metrics',
-      'full',
-    ])
-    .default('overview'),
+    .string()
+    .min(1)
+    .default('overview')
+    .describe(
+      'One of: overview, principles, tooling, communication, pre-start, personas, phase-0..9, conventions, templates, troubleshooting, metrics, full — OR `target-<name>` (target-api, target-ui, target-regression, target-full, …) to fetch a synthesized brief for a test-target template, including the gates the orchestrator must satisfy and the runbooks to follow.',
+    ),
 });
 
 export const StartQaCampaignInput = z.object({
   projectName: z.string().min(1),
   cliSource: z.string().min(1).default('claude-code'),
   notes: z.string().optional(),
+  target: z
+    .string()
+    .min(1)
+    .default('full')
+    .describe(
+      'Test-target template name (full | api | ui | regression | … — see process/test-targets/). Default `full` reproduces the historical Principe-10 UI-coverage gate. Other targets ship target-specific gates (route coverage, axe violations, regression pass, …) that BLOCK end_campaign until satisfied.',
+    ),
 });
 
 export const RecordCampaignMetricInput = z.object({
